@@ -28,10 +28,31 @@ app.get('/health', (req, res) => {
 // Serve React app (only if build exists)
 const frontendBuildPath = path.join(__dirname, '../frontend/build');
 if (require('fs').existsSync(frontendBuildPath)) {
-  app.get('/*', (req, res) => {
-    if (!req.url.startsWith('/api')) {
-      res.sendFile(path.join(frontendBuildPath, 'index.html'));
-    }
+  app.use(express.static(frontendBuildPath));
+  
+  // Handle React routing, send all non-API routes to index.html
+  app.get('/', (req, res) => {
+    res.sendFile(path.join(frontendBuildPath, 'index.html'));
+  });
+  
+  app.get('/transactions', (req, res) => {
+    res.sendFile(path.join(frontendBuildPath, 'index.html'));
+  });
+  
+  app.get('/projects', (req, res) => {
+    res.sendFile(path.join(frontendBuildPath, 'index.html'));
+  });
+  
+  app.get('/analytics', (req, res) => {
+    res.sendFile(path.join(frontendBuildPath, 'index.html'));
+  });
+  
+  app.get('/simulator', (req, res) => {
+    res.sendFile(path.join(frontendBuildPath, 'index.html'));
+  });
+  
+  app.get('/settings', (req, res) => {
+    res.sendFile(path.join(frontendBuildPath, 'index.html'));
   });
 }
 
