@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { LanguageProvider } from './contexts/LanguageContext';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Transactions from './pages/Transactions';
@@ -11,20 +12,22 @@ import './App.css';
 
 function App() {
   return (
-    <Router>
-      <div className="App min-h-screen bg-gray-50">
-        <Layout>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/transactions" element={<Transactions />} />
-            <Route path="/projects" element={<Projects />} />
-            <Route path="/analytics" element={<Analytics />} />
-            <Route path="/simulator" element={<Simulator />} />
-            <Route path="/settings" element={<Settings />} />
-          </Routes>
-        </Layout>
-      </div>
-    </Router>
+    <LanguageProvider>
+      <Router>
+        <div className="App min-h-screen bg-gray-50">
+          <Layout>
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/transactions" element={<Transactions />} />
+              <Route path="/projects" element={<Projects />} />
+              <Route path="/analytics" element={<Analytics />} />
+              <Route path="/simulator" element={<Simulator />} />
+              <Route path="/settings" element={<Settings />} />
+            </Routes>
+          </Layout>
+        </div>
+      </Router>
+    </LanguageProvider>
   );
 }
 
