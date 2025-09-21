@@ -1,10 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../models/database');
+const { authenticateToken } = require('../middleware/auth');
 
-// GET financial overview
-router.get('/overview', (req, res) => {
+// GET financial overview (user-specific)
+router.get('/overview', authenticateToken, (req, res) => {
   const { months = 12 } = req.query;
+  const userId = req.user.id;
   const startDate = new Date();
   startDate.setMonth(startDate.getMonth() - months);
   const startDateStr = startDate.toISOString().split('T')[0];
@@ -16,11 +18,11 @@ router.get('/overview', (req, res) => {
       SUM(amount) as total_amount,
       COUNT(*) as count
     FROM transactions 
-    WHERE date >= ?
+    WHERE user_id = ? AND date >= ?
     GROUP BY type
   `;
 
-  db.all(transactionQuery, [startDateStr], (err, transactionData) => {
+  db.all(transactionQuery, [userId, startDateStr], (err, transactionData) => {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -35,9 +37,10 @@ router.get('/overview', (req, res) => {
         COUNT(CASE WHEN status = 'active' THEN 1 END) as active_projects,
         COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_projects
       FROM projects
+      WHERE user_id = ?
     `;
 
-    db.get(projectQuery, [], (err, projectData) => {
+    db.get(projectQuery, [userId], (err, projectData) => {
       if (err) {
         res.status(500).json({ error: err.message });
         return;

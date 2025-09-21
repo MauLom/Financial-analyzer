@@ -20,17 +20,36 @@ const db = new sqlite3.Database(dbPath, (err) => {
 });
 
 function initializeDatabase() {
-  // Create transactions table
   db.serialize(() => {
+    // Create users table for authentication
+    db.run(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT UNIQUE NOT NULL,
+        username TEXT UNIQUE NOT NULL,
+        password_hash TEXT,
+        provider TEXT DEFAULT 'local',
+        provider_id TEXT,
+        first_name TEXT,
+        last_name TEXT,
+        avatar_url TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create transactions table
     db.run(`
       CREATE TABLE IF NOT EXISTS transactions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
         type TEXT NOT NULL CHECK(type IN ('income', 'expense', 'investment')),
         amount REAL NOT NULL,
         description TEXT NOT NULL,
         category TEXT,
         date TEXT NOT NULL,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users (id)
       )
     `);
 
@@ -38,6 +57,7 @@ function initializeDatabase() {
     db.run(`
       CREATE TABLE IF NOT EXISTS projects (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
         name TEXT NOT NULL,
         description TEXT,
         initial_investment REAL NOT NULL,
@@ -45,7 +65,8 @@ function initializeDatabase() {
         risk_level TEXT CHECK(risk_level IN ('low', 'medium', 'high')),
         duration_months INTEGER,
         status TEXT DEFAULT 'active' CHECK(status IN ('active', 'completed', 'cancelled')),
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users (id)
       )
     `);
 

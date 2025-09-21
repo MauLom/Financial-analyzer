@@ -1,13 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../models/database');
+const { authenticateToken } = require('../middleware/auth');
 
-// GET all transactions
-router.get('/', (req, res) => {
+// GET all transactions (user-specific)
+router.get('/', authenticateToken, (req, res) => {
   const { type, category, startDate, endDate, limit = 100 } = req.query;
+  const userId = req.user.id;
   
-  let query = 'SELECT * FROM transactions WHERE 1=1';
-  const params = [];
+  let query = 'SELECT * FROM transactions WHERE user_id = ?';
+  const params = [userId];
 
   if (type) {
     query += ' AND type = ?';
@@ -41,11 +43,12 @@ router.get('/', (req, res) => {
   });
 });
 
-// GET single transaction
-router.get('/:id', (req, res) => {
+// GET single transaction (user-specific)
+router.get('/:id', authenticateToken, (req, res) => {
   const { id } = req.params;
+  const userId = req.user.id;
   
-  db.get('SELECT * FROM transactions WHERE id = ?', [id], (err, row) => {
+  db.get('SELECT * FROM transactions WHERE id = ? AND user_id = ?', [id, userId], (err, row) => {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -58,9 +61,10 @@ router.get('/:id', (req, res) => {
   });
 });
 
-// POST new transaction
-router.post('/', (req, res) => {
+// POST new transaction (user-specific)
+router.post('/', authenticateToken, (req, res) => {
   const { type, amount, description, category, date } = req.body;
+  const userId = req.user.id;
   
   if (!type || !amount || !description || !date) {
     res.status(400).json({ error: 'Missing required fields: type, amount, description, date' });
@@ -78,11 +82,11 @@ router.post('/', (req, res) => {
   }
 
   const query = `
-    INSERT INTO transactions (type, amount, description, category, date)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO transactions (user_id, type, amount, description, category, date)
+    VALUES (?, ?, ?, ?, ?, ?)
   `;
   
-  db.run(query, [type, amount, description, category || null, date], function(err) {
+  db.run(query, [userId, type, amount, description, category || null, date], function(err) {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -99,10 +103,11 @@ router.post('/', (req, res) => {
   });
 });
 
-// PUT update transaction
-router.put('/:id', (req, res) => {
+// PUT update transaction (user-specific)
+router.put('/:id', authenticateToken, (req, res) => {
   const { id } = req.params;
   const { type, amount, description, category, date } = req.body;
+  const userId = req.user.id;
   
   if (!type || !amount || !description || !date) {
     res.status(400).json({ error: 'Missing required fields: type, amount, description, date' });
@@ -122,10 +127,10 @@ router.put('/:id', (req, res) => {
   const query = `
     UPDATE transactions 
     SET type = ?, amount = ?, description = ?, category = ?, date = ?
-    WHERE id = ?
+    WHERE id = ? AND user_id = ?
   `;
   
-  db.run(query, [type, amount, description, category || null, date, id], function(err) {
+  db.run(query, [type, amount, description, category || null, date, id, userId], function(err) {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -147,11 +152,12 @@ router.put('/:id', (req, res) => {
   });
 });
 
-// DELETE transaction
-router.delete('/:id', (req, res) => {
+// DELETE transaction (user-specific)
+router.delete('/:id', authenticateToken, (req, res) => {
   const { id } = req.params;
+  const userId = req.user.id;
   
-  db.run('DELETE FROM transactions WHERE id = ?', [id], function(err) {
+  db.run('DELETE FROM transactions WHERE id = ? AND user_id = ?', [id, userId], function(err) {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -166,9 +172,10 @@ router.delete('/:id', (req, res) => {
   });
 });
 
-// GET transaction summary
-router.get('/summary/totals', (req, res) => {
+// GET transaction summary (user-specific)
+router.get('/summary/totals', authenticateToken, (req, res) => {
   const { startDate, endDate } = req.query;
+  const userId = req.user.id;
   
   let query = `
     SELECT 
@@ -176,9 +183,9 @@ router.get('/summary/totals', (req, res) => {
       SUM(amount) as total_amount,
       COUNT(*) as count
     FROM transactions 
-    WHERE 1=1
+    WHERE user_id = ?
   `;
-  const params = [];
+  const params = [userId];
 
   if (startDate) {
     query += ' AND date >= ?';
