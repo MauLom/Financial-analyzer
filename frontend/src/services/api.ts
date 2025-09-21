@@ -10,6 +10,8 @@ import {
   FinancialOverview,
   InvestmentInsights,
   Settings,
+  User,
+  AuthResponse,
 } from '../types';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
@@ -20,6 +22,54 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+// Add token to requests if available
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Handle authentication errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
+// Auth API
+export const authApi = {
+  register: (data: {
+    email: string;
+    password: string;
+    username: string;
+    first_name?: string;
+    last_name?: string;
+  }): Promise<AuthResponse> =>
+    api.post('/auth/register', data).then(res => res.data),
+
+  login: (data: {
+    email: string;
+    password: string;
+  }): Promise<AuthResponse> =>
+    api.post('/auth/login', data).then(res => res.data),
+
+  getMe: (): Promise<{ user: User }> =>
+    api.get('/auth/me').then(res => res.data),
+};
 
 // Transaction API
 export const transactionApi = {
