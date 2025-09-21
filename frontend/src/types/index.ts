@@ -109,6 +109,12 @@ export interface FinancialOverview {
     completed_projects: number;
     total_returns: number;
   };
+  changes: {
+    income: number;
+    expenses: number;
+    investments: number;
+    net: number;
+  };
 }
 
 export interface InvestmentInsights {
