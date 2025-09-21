@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 
 import { useAuth } from '../contexts/AuthContext';
+import LanguageSelector from './LanguageSelector';
+import { useLanguage } from '../contexts/LanguageContext';
 
 
 interface LayoutProps {
@@ -23,7 +25,7 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
-
+  const { t } = useLanguage();
   const { user, logout } = useAuth();
 
 
@@ -43,15 +45,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Mobile menu */}
       <div className={`fixed inset-0 flex z-40 md:hidden ${sidebarOpen ? '' : 'pointer-events-none'}`}>
         <div
-          className={`fixed inset-0 bg-gray-600 bg-opacity-75 ${
-            sidebarOpen ? 'opacity-100' : 'opacity-0'
-          } transition-opacity duration-300 ease-linear`}
+          className={`fixed inset-0 bg-gray-600 bg-opacity-75 ${sidebarOpen ? 'opacity-100' : 'opacity-0'
+            } transition-opacity duration-300 ease-linear`}
           onClick={() => setSidebarOpen(false)}
         />
         <div
-          className={`relative flex-1 flex flex-col max-w-xs w-full bg-white ${
-            sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-          } transition-transform duration-300 ease-in-out`}
+          className={`relative flex-1 flex flex-col max-w-xs w-full bg-white ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+            } transition-transform duration-300 ease-in-out`}
         >
           <div className="absolute top-0 right-0 -mr-12 pt-2">
             <button
@@ -76,11 +76,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   <Link
                     key={item.key}
                     to={item.href}
-                    className={`group flex items-center px-2 py-2 text-base font-medium rounded-md ${
-                      isCurrentPath(item.href)
+                    className={`group flex items-center px-2 py-2 text-base font-medium rounded-md ${isCurrentPath(item.href)
                         ? 'bg-gray-100 text-gray-900'
                         : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                    }`}
+                      }`}
                     onClick={() => setSidebarOpen(false)}
                   >
                     <Icon className="mr-4 h-6 w-6" />
@@ -89,7 +88,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 );
               })}
             </nav>
-            
+
             {/* User menu for mobile */}
             <div className="mt-8 px-2 pt-4 border-t border-gray-200">
               <div className="flex items-center px-2 py-2">
@@ -141,11 +140,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     <Link
                       key={item.key}
                       to={item.href}
-                      className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${
-                        isCurrentPath(item.href)
+                      className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${isCurrentPath(item.href)
                           ? 'bg-gray-100 text-gray-900'
                           : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                      }`}
+                        }`}
                     >
                       <Icon className="mr-3 h-6 w-6" />
                       {item.name}
@@ -153,7 +151,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   );
                 })}
               </nav>
-              
+
               {/* User menu for desktop */}
               <div className="flex-shrink-0 flex border-t border-gray-200 p-4">
                 <div className="flex items-center w-full">
