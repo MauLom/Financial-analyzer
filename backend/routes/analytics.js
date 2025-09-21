@@ -1,17 +1,29 @@
 const express = require('express');
 const router = express.Router();
-const { Transaction, Project, ProjectReturn, Setting } = require('../models/database-mongo');
 
-// GET financial overview
-router.get('/overview', async (req, res) => {
+const { Transaction, Project, ProjectReturn, Settings } = require('../models/database');
+const { authenticateToken } = require('../middleware/auth');
+const mongoose = require('mongoose');
+
+// GET financial overview (user-specific)
+router.get('/overview', authenticateToken, async (req, res) => {
   try {
     const { months = 12 } = req.query;
+    const userId = req.user.id;
+
     const startDate = new Date();
     startDate.setMonth(startDate.getMonth() - months);
 
     // Get transaction summary
-    const transactionData = await Transaction.aggregate([
-      { $match: { date: { $gte: startDate } } },
+
+    const transactionSummary = await Transaction.aggregate([
+      { 
+        $match: { 
+          user_id: new mongoose.Types.ObjectId(userId),
+          date: { $gte: startDate }
+        }
+      },
+
       {
         $group: {
           _id: '$type',
@@ -22,7 +34,10 @@ router.get('/overview', async (req, res) => {
     ]);
 
     // Get project summary
-    const projectData = await Project.aggregate([
+
+    const projectSummary = await Project.aggregate([
+      { $match: { user_id: new mongoose.Types.ObjectId(userId) } },
+
       {
         $group: {
           _id: null,
@@ -39,8 +54,23 @@ router.get('/overview', async (req, res) => {
       }
     ]);
 
-    // Get total returns
-    const returnsData = await ProjectReturn.aggregate([
+
+    // Get total returns from project returns
+    const totalReturns = await ProjectReturn.aggregate([
+      {
+        $lookup: {
+          from: 'projects',
+          localField: 'project_id',
+          foreignField: '_id',
+          as: 'project'
+        }
+      },
+      {
+        $match: {
+          'project.user_id': new mongoose.Types.ObjectId(userId),
+          return_date: { $gte: startDate }
+        }
+      },
       {
         $group: {
           _id: null,
@@ -49,220 +79,252 @@ router.get('/overview', async (req, res) => {
       }
     ]);
 
-    const summary = {
+    // Format transaction summary
+    const formattedTransactionSummary = {
       income: 0,
       expenses: 0,
-      investments: 0
+      investments: 0,
+      net: 0
     };
 
-    transactionData.forEach(row => {
-      if (row._id === 'income') {
-        summary.income = row.total_amount;
-      } else if (row._id === 'expense') {
-        summary.expenses = row.total_amount;
-      } else if (row._id === 'investment') {
-        summary.investments = row.total_amount;
+    transactionSummary.forEach(item => {
+      if (item._id === 'income') {
+        formattedTransactionSummary.income = item.total_amount;
+      } else if (item._id === 'expense') {
+        formattedTransactionSummary.expenses = item.total_amount;
+      } else if (item._id === 'investment') {
+        formattedTransactionSummary.investments = item.total_amount;
       }
     });
 
-    summary.net = summary.income - summary.expenses - summary.investments;
+    formattedTransactionSummary.net = 
+      formattedTransactionSummary.income - 
+      formattedTransactionSummary.expenses - 
+      formattedTransactionSummary.investments;
 
-    const projectSummary = projectData[0] || {
+    // Format project summary
+    const formattedProjectSummary = projectSummary.length > 0 ? {
+      total_projects: projectSummary[0].total_projects || 0,
+      total_invested: projectSummary[0].total_invested || 0,
+      avg_expected_return: projectSummary[0].avg_expected_return || 0,
+      active_projects: projectSummary[0].active_projects || 0,
+      completed_projects: projectSummary[0].completed_projects || 0,
+      total_returns: totalReturns.length > 0 ? totalReturns[0].total_returns : 0
+    } : {
       total_projects: 0,
       total_invested: 0,
       avg_expected_return: 0,
       active_projects: 0,
-      completed_projects: 0
+      completed_projects: 0,
+      total_returns: 0
     };
 
     res.json({
       period_months: parseInt(months),
-      transaction_summary: summary,
-      project_summary: {
-        total_projects: projectSummary.total_projects,
-        total_invested: projectSummary.total_invested,
-        avg_expected_return: projectSummary.avg_expected_return,
-        active_projects: projectSummary.active_projects,
-        completed_projects: projectSummary.completed_projects,
-        total_returns: returnsData[0]?.total_returns || 0
-      }
+      transaction_summary: formattedTransactionSummary,
+      project_summary: formattedProjectSummary
     });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
-// GET monthly trends
-router.get('/trends/monthly', async (req, res) => {
+// GET monthly trends (user-specific)
+router.get('/trends/monthly', authenticateToken, async (req, res) => {
   try {
     const { months = 12 } = req.query;
+    const userId = req.user.id;
     const startDate = new Date();
     startDate.setMonth(startDate.getMonth() - months);
 
-    const monthlyData = await Transaction.aggregate([
-      { $match: { date: { $gte: startDate } } },
-      {
-        $group: {
-          _id: {
-            month: { $dateToString: { format: '%Y-%m', date: '$date' } },
-            type: '$type'
-          },
-          total_amount: { $sum: '$amount' },
-          count: { $sum: 1 }
+    const trends = await Transaction.aggregate([
+      { 
+        $match: { 
+          user_id: new mongoose.Types.ObjectId(userId),
+          date: { $gte: startDate }
         }
       },
       {
-        $sort: { '_id.month': -1, '_id.type': 1 }
-      }
-    ]);
-
-    // Group by month
-    const groupedData = {};
-    monthlyData.forEach(row => {
-      const month = row._id.month;
-      if (!groupedData[month]) {
-        groupedData[month] = {
-          month: month,
-          income: 0,
-          expenses: 0,
-          investments: 0,
-          net: 0
-        };
-      }
-
-      if (row._id.type === 'income') {
-        groupedData[month].income = row.total_amount;
-      } else if (row._id.type === 'expense') {
-        groupedData[month].expenses = row.total_amount;
-      } else if (row._id.type === 'investment') {
-        groupedData[month].investments = row.total_amount;
-      }
-    });
-
-    // Calculate net for each month
-    Object.values(groupedData).forEach(month => {
-      month.net = month.income - month.expenses - month.investments;
-    });
-
-    res.json(Object.values(groupedData).sort((a, b) => a.month.localeCompare(b.month)));
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// GET category breakdown
-router.get('/breakdown/categories', async (req, res) => {
-  try {
-    const { type = 'expense', months = 12 } = req.query;
-    const startDate = new Date();
-    startDate.setMonth(startDate.getMonth() - months);
-
-    const categories = await Transaction.aggregate([
-      { 
-        $match: { 
-          type: type, 
-          date: { $gte: startDate } 
-        } 
+        $group: {
+          _id: {
+            year: { $year: '$date' },
+            month: { $month: '$date' },
+            type: '$type'
+          },
+          total_amount: { $sum: '$amount' }
+        }
       },
       {
         $group: {
-          _id: { $ifNull: ['$category', 'Uncategorized'] },
+          _id: {
+            year: '$_id.year',
+            month: '$_id.month'
+          },
+          income: {
+            $sum: {
+              $cond: [{ $eq: ['$_id.type', 'income'] }, '$total_amount', 0]
+            }
+          },
+          expenses: {
+            $sum: {
+              $cond: [{ $eq: ['$_id.type', 'expense'] }, '$total_amount', 0]
+            }
+          },
+          investments: {
+            $sum: {
+              $cond: [{ $eq: ['$_id.type', 'investment'] }, '$total_amount', 0]
+            }
+          }
+        }
+      },
+      {
+        $addFields: {
+          net: { $subtract: [{ $subtract: ['$income', '$expenses'] }, '$investments'] },
+          month: {
+            $concat: [
+              { $toString: '$_id.year' },
+              '-',
+              { $cond: [
+                { $lt: ['$_id.month', 10] },
+                { $concat: ['0', { $toString: '$_id.month' }] },
+                { $toString: '$_id.month' }
+              ]}
+            ]
+          }
+        }
+      },
+      { $sort: { '_id.year': 1, '_id.month': 1 } }
+    ]);
+
+
+    res.json(trends);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET category breakdown (user-specific)
+router.get('/breakdown/categories', authenticateToken, async (req, res) => {
+  try {
+    const { type = 'expense', months = 12 } = req.query;
+    const userId = req.user.id;
+    const startDate = new Date();
+    startDate.setMonth(startDate.getMonth() - months);
+
+    const breakdown = await Transaction.aggregate([
+      { 
+        $match: { 
+          user_id: new mongoose.Types.ObjectId(userId),
+          type: type,
+          date: { $gte: startDate },
+          category: { $exists: true, $ne: null }
+        }
+      },
+      {
+        $group: {
+          _id: '$category',
           total_amount: { $sum: '$amount' },
           count: { $sum: 1 },
           avg_amount: { $avg: '$amount' }
         }
       },
       {
-        $sort: { total_amount: -1 }
-      },
-      {
         $project: {
           category: '$_id',
           total_amount: 1,
           count: 1,
-          avg_amount: 1,
-          _id: 0
+          avg_amount: { $round: ['$avg_amount', 2] }
         }
-      }
+      },
+      { $sort: { total_amount: -1 } }
     ]);
 
-    res.json(categories);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json(breakdown);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
-// POST simulate capital growth
+// POST growth simulation
 router.post('/simulate/growth', (req, res) => {
-  const { 
-    initial_amount = 0, 
-    monthly_investment = 0, 
-    annual_return_rate = 7, 
-    years = 10,
-    inflation_rate = 3.5 
-  } = req.body;
+  try {
+    const {
+      initial_amount = 1000,
+      monthly_investment = 100,
+      annual_return_rate = 7,
+      years = 10,
+      inflation_rate = 3
+    } = req.body;
 
-  if (isNaN(initial_amount) || isNaN(monthly_investment) || isNaN(annual_return_rate) || isNaN(years)) {
-    res.status(400).json({ error: 'All parameters must be valid numbers' });
-    return;
-  }
+    const months = years * 12;
+    const monthly_return_rate = annual_return_rate / 100 / 12;
+    const monthly_inflation_rate = inflation_rate / 100 / 12;
 
-  const monthlyReturnRate = annual_return_rate / 100 / 12;
-  const monthlyInflationRate = inflation_rate / 100 / 12;
-  const totalMonths = years * 12;
-  const simulation = [];
+    let nominal_value = initial_amount;
+    let total_invested = initial_amount;
+    const simulation = [];
 
-  let currentAmount = parseFloat(initial_amount);
-  let totalInvested = parseFloat(initial_amount);
-  let realValue = parseFloat(initial_amount);
-
-  for (let month = 0; month <= totalMonths; month++) {
-    if (month > 0) {
+    for (let month = 1; month <= months; month++) {
       // Add monthly investment
-      currentAmount += parseFloat(monthly_investment);
-      totalInvested += parseFloat(monthly_investment);
+      nominal_value += monthly_investment;
+      total_invested += monthly_investment;
       
-      // Apply growth
-      currentAmount *= (1 + monthlyReturnRate);
+      // Apply return
+      nominal_value *= (1 + monthly_return_rate);
       
       // Calculate real value (adjusted for inflation)
-      realValue = currentAmount / Math.pow(1 + monthlyInflationRate, month);
+      const real_value = nominal_value / Math.pow(1 + monthly_inflation_rate, month);
+      
+      const gains = nominal_value - total_invested;
+      const return_rate = total_invested > 0 ? (gains / total_invested) * 100 : 0;
+
+      if (month % 12 === 0 || month === months) {
+        simulation.push({
+          month,
+          year: Math.ceil(month / 12),
+          nominal_value: Math.round(nominal_value * 100) / 100,
+          real_value: Math.round(real_value * 100) / 100,
+          total_invested,
+          gains: Math.round(gains * 100) / 100,
+          return_rate: Math.round(return_rate * 100) / 100
+        });
+      }
     }
 
-    simulation.push({
-      month,
-      year: Math.floor(month / 12),
-      nominal_value: Math.round(currentAmount * 100) / 100,
-      real_value: Math.round(realValue * 100) / 100,
-      total_invested: Math.round(totalInvested * 100) / 100,
-      gains: Math.round((currentAmount - totalInvested) * 100) / 100,
-      return_rate: totalInvested > 0 ? Math.round(((currentAmount - totalInvested) / totalInvested * 100) * 100) / 100 : 0
+    const final_simulation = simulation[simulation.length - 1];
+    
+    res.json({
+      parameters: {
+        initial_amount,
+        monthly_investment,
+        annual_return_rate,
+        years,
+        inflation_rate
+      },
+      simulation,
+      summary: {
+        final_nominal_value: final_simulation.nominal_value,
+        final_real_value: final_simulation.real_value,
+        total_invested: final_simulation.total_invested,
+        total_gains: final_simulation.gains,
+        final_return_rate: final_simulation.return_rate
+      }
     });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
-
-  res.json({
-    parameters: {
-      initial_amount,
-      monthly_investment,
-      annual_return_rate,
-      years,
-      inflation_rate
-    },
-    simulation,
-    summary: {
-      final_nominal_value: simulation[simulation.length - 1].nominal_value,
-      final_real_value: simulation[simulation.length - 1].real_value,
-      total_invested: simulation[simulation.length - 1].total_invested,
-      total_gains: simulation[simulation.length - 1].gains,
-      final_return_rate: simulation[simulation.length - 1].return_rate
-    }
-  });
 });
 
-// GET investment insights
-router.get('/insights/investments', async (req, res) => {
+
+// GET investment insights (user-specific)
+router.get('/insights/investments', authenticateToken, async (req, res) => {
   try {
+    const userId = req.user.id;
+
+    // Get all projects with their returns
     const projects = await Project.aggregate([
+      { $match: { user_id: new mongoose.Types.ObjectId(userId) } },
+
       {
         $lookup: {
           from: 'projectreturns',
@@ -274,11 +336,12 @@ router.get('/insights/investments', async (req, res) => {
       {
         $addFields: {
           total_returns: { $sum: '$returns.return_amount' },
-          return_count: { $size: '$returns' },
+
           actual_return_rate: {
             $cond: {
               if: { $gt: ['$initial_investment', 0] },
-              then: {
+              then: { 
+
                 $multiply: [
                   { $divide: [{ $sum: '$returns.return_amount' }, '$initial_investment'] },
                   100
@@ -286,76 +349,79 @@ router.get('/insights/investments', async (req, res) => {
               },
               else: 0
             }
-          },
-          performance_ratio: {
-            $cond: {
-              if: { $and: [{ $gt: ['$expected_return', 0] }, { $gt: ['$initial_investment', 0] }] },
-              then: {
-                $multiply: [
-                  {
-                    $divide: [
-                      {
-                        $multiply: [
-                          { $divide: [{ $sum: '$returns.return_amount' }, '$initial_investment'] },
-                          100
-                        ]
-                      },
-                      '$expected_return'
-                    ]
-                  },
-                  100
-                ]
-              },
-              else: 0
-            }
+
           }
         }
-      },
-      {
-        $sort: { performance_ratio: -1 }
       }
     ]);
 
-    // Calculate insights
-    const insights = {
-      best_performing: projects.filter(p => p.performance_ratio > 100).slice(0, 5),
-      underperforming: projects.filter(p => p.performance_ratio > 0 && p.performance_ratio < 80).slice(0, 5),
-      high_risk_high_return: projects.filter(p => p.risk_level === 'high' && p.expected_return > 10),
-      diversification_score: calculateDiversificationScore(projects),
-      total_portfolio_value: projects.reduce((sum, p) => sum + p.initial_investment + (p.total_returns || 0), 0),
-      avg_portfolio_return: projects.length > 0 ? 
-        projects.reduce((sum, p) => sum + (p.actual_return_rate || 0), 0) / projects.length : 0
-    };
+    if (projects.length === 0) {
+      return res.json({
+        best_performing: [],
+        underperforming: [],
+        high_risk_high_return: [],
+        diversification_score: 0,
+        total_portfolio_value: 0,
+        avg_portfolio_return: 0
+      });
+    }
 
-    res.json(insights);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+
+    // Sort projects by performance
+    const sortedProjects = projects.sort((a, b) => b.actual_return_rate - a.actual_return_rate);
+
+
+    // Get best performing (top 3 or all if less than 3)
+    const best_performing = sortedProjects.slice(0, Math.min(3, projects.length));
+
+    // Get underperforming (actual return < expected return)
+    const underperforming = projects.filter(p => p.actual_return_rate < p.expected_return);
+
+
+    // Get high risk, high return projects
+    const high_risk_high_return = projects.filter(p => 
+      p.risk_level === 'high' && p.actual_return_rate > p.expected_return
+    );
+
+    // Calculate diversification score
+    const riskLevels = { low: 0, medium: 0, high: 0 };
+    projects.forEach(p => {
+      if (p.risk_level) riskLevels[p.risk_level]++;
+    });
+
+    const diversificationFactors = [
+      riskLevels.low / projects.length,
+      riskLevels.medium / projects.length,
+      riskLevels.high / projects.length
+    ].filter(factor => factor > 0);
+
+    const diversification_score = Math.round((diversificationFactors.length / 3) * 100);
+
+    // Calculate portfolio metrics
+    const total_portfolio_value = projects.reduce((sum, p) => sum + p.initial_investment + p.total_returns, 0);
+    const avg_portfolio_return = projects.length > 0 
+      ? projects.reduce((sum, p) => sum + p.actual_return_rate, 0) / projects.length
+      : 0;
+
+    res.json({
+      best_performing,
+      underperforming,
+      high_risk_high_return,
+      diversification_score,
+      total_portfolio_value: Math.round(total_portfolio_value * 100) / 100,
+      avg_portfolio_return: Math.round(avg_portfolio_return * 100) / 100
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
-
-function calculateDiversificationScore(projects) {
-  if (projects.length === 0) return 0;
-  
-  const riskLevels = { low: 0, medium: 0, high: 0 };
-  projects.forEach(p => {
-    if (p.risk_level) riskLevels[p.risk_level]++;
-  });
-  
-  const totalProjects = projects.length;
-  const diversificationFactors = [
-    riskLevels.low / totalProjects,
-    riskLevels.medium / totalProjects,
-    riskLevels.high / totalProjects
-  ].filter(factor => factor > 0);
-  
-  // Higher score for more even distribution across risk levels
-  return Math.round((diversificationFactors.length / 3) * 100);
-}
 
 // GET settings
 router.get('/settings', async (req, res) => {
   try {
-    const settings = await Setting.find({});
+
+    const settings = await Settings.find({});
+
     
     const settingsObj = {};
     settings.forEach(setting => {
@@ -363,8 +429,10 @@ router.get('/settings', async (req, res) => {
     });
     
     res.json(settingsObj);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+
   }
 });
 
@@ -382,29 +450,32 @@ router.put('/settings', async (req, res) => {
     }
     
     if (updates.length === 0) {
-      res.status(400).json({ error: 'No settings to update' });
-      return;
+
+      return res.status(400).json({ error: 'No settings to update' });
     }
     
-    // Update each setting
-    for (const [key, value] of updates) {
-      await Setting.findOneAndUpdate(
+    // Update settings
+    await Promise.all(updates.map(([key, value]) =>
+      Settings.findOneAndUpdate(
         { key },
         { key, value },
         { upsert: true, new: true }
-      );
-    }
+      )
+    ));
     
     // Return updated settings
-    const settings = await Setting.find({});
+    const allSettings = await Settings.find({});
     const settingsObj = {};
-    settings.forEach(setting => {
+    allSettings.forEach(setting => {
+
       settingsObj[setting.key] = setting.value;
     });
     
     res.json(settingsObj);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+
   }
 });
 

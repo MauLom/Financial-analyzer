@@ -9,9 +9,12 @@ import {
   Menu,
   X,
   Home,
+  LogOut,
+  User,
 } from 'lucide-react';
-import { useLanguage } from '../contexts/LanguageContext';
-import LanguageSelector from './LanguageSelector';
+
+import { useAuth } from '../contexts/AuthContext';
+
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -20,7 +23,9 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
-  const { t } = useLanguage();
+
+  const { user, logout } = useAuth();
+
 
   const navigation = [
     { name: t('nav.dashboard'), href: '/', icon: Home, key: 'nav.dashboard' },
@@ -84,6 +89,36 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 );
               })}
             </nav>
+            
+            {/* User menu for mobile */}
+            <div className="mt-8 px-2 pt-4 border-t border-gray-200">
+              <div className="flex items-center px-2 py-2">
+                <div className="flex items-center">
+                  {user?.avatar_url ? (
+                    <img
+                      className="h-8 w-8 rounded-full"
+                      src={user.avatar_url}
+                      alt={user.username}
+                    />
+                  ) : (
+                    <div className="h-8 w-8 rounded-full bg-indigo-600 flex items-center justify-center">
+                      <User className="h-5 w-5 text-white" />
+                    </div>
+                  )}
+                  <div className="ml-3">
+                    <p className="text-base font-medium text-gray-900">{user?.first_name || user?.username}</p>
+                    <p className="text-sm text-gray-600">{user?.email}</p>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={logout}
+                className="mt-2 w-full group flex items-center px-2 py-2 text-base font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              >
+                <LogOut className="mr-4 h-6 w-6" />
+                Sign out
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -118,6 +153,38 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   );
                 })}
               </nav>
+              
+              {/* User menu for desktop */}
+              <div className="flex-shrink-0 flex border-t border-gray-200 p-4">
+                <div className="flex items-center w-full">
+                  <div className="flex items-center">
+                    {user?.avatar_url ? (
+                      <img
+                        className="inline-block h-9 w-9 rounded-full"
+                        src={user.avatar_url}
+                        alt={user.username}
+                      />
+                    ) : (
+                      <div className="h-9 w-9 rounded-full bg-indigo-600 flex items-center justify-center">
+                        <User className="h-5 w-5 text-white" />
+                      </div>
+                    )}
+                    <div className="ml-3 min-w-0 flex-1">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {user?.first_name || user?.username}
+                      </p>
+                      <p className="text-xs text-gray-600 truncate">{user?.email}</p>
+                    </div>
+                    <button
+                      onClick={logout}
+                      className="ml-3 flex-shrink-0 p-1 text-gray-400 hover:text-gray-600"
+                      title="Sign out"
+                    >
+                      <LogOut className="h-5 w-5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

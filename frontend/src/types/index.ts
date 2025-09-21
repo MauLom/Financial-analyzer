@@ -1,3 +1,22 @@
+export interface User {
+  id: number;
+  email: string;
+  username: string;
+  provider: 'local' | 'google' | 'github';
+  provider_id?: string;
+  first_name?: string;
+  last_name?: string;
+  avatar_url?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AuthResponse {
+  message: string;
+  user: User;
+  token: string;
+}
+
 export interface Transaction {
   id: number;
   type: 'income' | 'expense' | 'investment';
