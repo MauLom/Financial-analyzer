@@ -150,6 +150,9 @@ export const analyticsApi = {
 
   updateSettings: (settings: Partial<Settings>): Promise<Settings> =>
     api.put('/analytics/settings', settings).then(res => res.data),
+    
+  getCategories: (): Promise<string[]> =>
+    api.get('/analytics/settings').then(res => res.data.categories || []),
 };
 
 export default api;

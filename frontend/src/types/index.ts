@@ -129,4 +129,5 @@ export interface InvestmentInsights {
 export interface Settings {
   inflation_rate: string;
   cost_of_living_increase: string;
+  categories: string[];
 }

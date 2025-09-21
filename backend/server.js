@@ -4,8 +4,7 @@ const path = require('path');
 const passport = require('passport');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
-// const { initializeDatabase } = require('./models/database-mongo');
-const { connectDB } = require('./models/mongodb-mock');
+const { initializeDatabase } = require('./models/database-mongo');
 const transactionRoutes = require('./routes/transactions');
 const projectRoutes = require('./routes/projects');
 const analyticsRoutes = require('./routes/analytics');
@@ -71,16 +70,20 @@ app.use((error, req, res, next) => {
 });
 
 // Initialize database and start server
-connectDB().then(() => {
+initializeDatabase().then(() => {
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
   });
 }).catch((err) => {
   console.error('Failed to initialize database:', err.message);
-  console.log('Starting server anyway in development mode...');
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT} (without database)`);
-  });
+  if (process.env.NODE_ENV !== 'development') {
+    process.exit(1);
+  } else {
+    console.log('Starting server anyway in development mode...');
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT} (without database)`);
+    });
+  }
 });
 
 module.exports = app;

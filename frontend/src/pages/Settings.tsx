@@ -17,6 +17,9 @@ const Settings: React.FC = () => {
     cost_of_living_increase: '',
   });
 
+  const [categories, setCategories] = useState<string[]>([]);
+  const [newCategory, setNewCategory] = useState('');
+
   useEffect(() => {
     fetchSettings();
   }, []);
@@ -30,11 +33,48 @@ const Settings: React.FC = () => {
         inflation_rate: data.inflation_rate,
         cost_of_living_increase: data.cost_of_living_increase,
       });
+      setCategories(data.categories || []);
     } catch (err) {
       setError('Failed to load settings');
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const addCategory = () => {
+    if (newCategory.trim() && !categories.includes(newCategory.trim())) {
+      setCategories(prev => [...prev, newCategory.trim()]);
+      setNewCategory('');
+    }
+  };
+
+  const removeCategory = (categoryToRemove: string) => {
+    setCategories(prev => prev.filter(cat => cat !== categoryToRemove));
+  };
+
+  const saveCategoriesSettings = async () => {
+    setSaving(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const updatedSettings = await analyticsApi.updateSettings({ 
+        ...formData, 
+        categories 
+      });
+      setSettings(updatedSettings);
+      setSuccess('Settings updated successfully');
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setSuccess(null);
+      }, 3000);
+    } catch (err) {
+      setError('Failed to update settings');
+      console.error(err);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -45,7 +85,10 @@ const Settings: React.FC = () => {
     setSuccess(null);
 
     try {
-      const updatedSettings = await analyticsApi.updateSettings(formData);
+      const updatedSettings = await analyticsApi.updateSettings({ 
+        ...formData, 
+        categories 
+      });
       setSettings(updatedSettings);
       setSuccess('Settings updated successfully');
       
@@ -177,6 +220,86 @@ const Settings: React.FC = () => {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+
+        {/* Category Management */}
+        <div className="bg-white shadow rounded-lg">
+          <div className="px-4 py-5 sm:p-6">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Transaction Categories</h3>
+            
+            <div className="space-y-4">
+              {/* Add new category */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Add New Category
+                </label>
+                <div className="flex space-x-2">
+                  <input
+                    type="text"
+                    value={newCategory}
+                    onChange={(e) => setNewCategory(e.target.value)}
+                    placeholder="Enter category name"
+                    className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                    onKeyPress={(e) => e.key === 'Enter' && addCategory()}
+                  />
+                  <button
+                    type="button"
+                    onClick={addCategory}
+                    disabled={!newCategory.trim() || categories.includes(newCategory.trim())}
+                    className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+
+              {/* Categories list */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Current Categories ({categories.length})
+                </label>
+                <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-md">
+                  {categories.length > 0 ? (
+                    <div className="divide-y divide-gray-200">
+                      {categories.map((category, index) => (
+                        <div key={index} className="flex items-center justify-between px-3 py-2 hover:bg-gray-50">
+                          <span className="text-sm text-gray-900">{category}</span>
+                          <button
+                            type="button"
+                            onClick={() => removeCategory(category)}
+                            className="text-red-500 hover:text-red-700 text-sm font-medium"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="px-3 py-4 text-center text-sm text-gray-500">
+                      No categories configured
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Save categories button */}
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={saveCategoriesSettings}
+                  disabled={saving}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {saving ? (
+                    <div className="loading-spinner w-4 h-4 mr-2"></div>
+                  ) : (
+                    <Save className="h-4 w-4 mr-2" />
+                  )}
+                  {saving ? 'Saving...' : 'Save Categories'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
