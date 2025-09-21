@@ -149,7 +149,7 @@ const Simulator: React.FC = () => {
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Input Form */}
         <div className="bg-white shadow rounded-lg p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Simulation Parameters</h3>
+          <h3 className="text-lg font-medium text-gray-900 mb-4">{t('simulator.parameters')}</h3>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">

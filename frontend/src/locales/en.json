@@ -49,6 +49,7 @@
   
   "simulator.title": "Investment Growth Simulator",
   "simulator.description": "Simulate potential investment growth over time",
+  "simulator.parameters": "Simulation Parameters",
   "simulator.initialAmount": "Initial Amount",
   "simulator.monthlyInvestment": "Monthly Investment",
   "simulator.annualReturnRate": "Annual Return Rate (%)",
