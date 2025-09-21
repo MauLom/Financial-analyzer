@@ -18,14 +18,28 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState(12);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [categoryBreakdown, setCategoryBreakdown] = useState<any[]>([]);
   const { t } = useLanguage();
 
   useEffect(() => {
-    const fetchOverview = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
-        const data = await analyticsApi.getOverview(selectedPeriod);
-        setOverview(data);
+        
+        // Fetch overview data
+        const overviewData = await analyticsApi.getOverview(selectedPeriod);
+        setOverview(overviewData);
+        
+        // Fetch categories
+        const categoriesData = await analyticsApi.getCategories();
+        setCategories(categoriesData);
+        
+        // Fetch category breakdown for expenses
+        const breakdownData = await analyticsApi.getCategoryBreakdown('expense', selectedPeriod);
+        setCategoryBreakdown(breakdownData);
+        
       } catch (err) {
         setError('Failed to load dashboard data');
         console.error(err);
@@ -34,7 +48,7 @@ const Dashboard: React.FC = () => {
       }
     };
 
-    fetchOverview();
+    fetchData();
   }, [selectedPeriod]);
 
   if (loading) {
@@ -116,7 +130,7 @@ const Dashboard: React.FC = () => {
             {t('dashboard.overview').replace('{{months}}', overview.period_months.toString())}
           </p>
         </div>
-        <div className="mt-4 md:mt-0">
+        <div className="mt-4 md:mt-0 flex space-x-4">
           <select
             value={selectedPeriod}
             onChange={(e) => setSelectedPeriod(Number(e.target.value))}
@@ -126,6 +140,17 @@ const Dashboard: React.FC = () => {
             <option value={6}>Last 6 months</option>
             <option value={12}>Last 12 months</option>
             <option value={24}>Last 24 months</option>
+          </select>
+          
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          >
+            <option value="">All Categories</option>
+            {categories.map((category) => (
+              <option key={category} value={category}>{category}</option>
+            ))}
           </select>
         </div>
       </div>
@@ -172,6 +197,81 @@ const Dashboard: React.FC = () => {
           );
         })}
       </div>
+
+      {/* Category Breakdown */}
+      {categoryBreakdown.length > 0 && (
+        <div className="mt-8">
+          <div className="bg-white shadow rounded-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium text-gray-900">
+                Expense by Category
+                {selectedCategory && ` - ${selectedCategory}`}
+              </h3>
+              {selectedCategory && (
+                <button
+                  onClick={() => setSelectedCategory('')}
+                  className="text-sm text-indigo-600 hover:text-indigo-500"
+                >
+                  Show All Categories
+                </button>
+              )}
+            </div>
+            
+            <div className="space-y-3">
+              {categoryBreakdown
+                .filter(cat => !selectedCategory || cat.category === selectedCategory)
+                .slice(0, selectedCategory ? 1 : 8)
+                .map((category) => {
+                  const percentage = overview ? (category.total_amount / Math.abs(overview.transaction_summary.expenses)) * 100 : 0;
+                  return (
+                    <div 
+                      key={category.category}
+                      className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
+                        selectedCategory === category.category 
+                          ? 'border-indigo-200 bg-indigo-50' 
+                          : 'border-gray-200 hover:bg-gray-50'
+                      }`}
+                      onClick={() => setSelectedCategory(selectedCategory === category.category ? '' : category.category)}
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-gray-900">{category.category}</span>
+                          <div className="text-right">
+                            <div className="font-medium text-gray-900">{formatCurrency(category.total_amount)}</div>
+                            <div className="text-sm text-gray-500">{category.count} transactions</div>
+                          </div>
+                        </div>
+                        <div className="mt-2">
+                          <div className="bg-gray-200 rounded-full h-2">
+                            <div 
+                              className="bg-indigo-600 h-2 rounded-full" 
+                              style={{ width: `${Math.min(percentage, 100)}%` }}
+                            ></div>
+                          </div>
+                          <div className="flex justify-between mt-1 text-xs text-gray-500">
+                            <span>{percentage.toFixed(1)}% of expenses</span>
+                            <span>Avg: {formatCurrency(category.avg_amount)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+            
+            {!selectedCategory && categoryBreakdown.length > 8 && (
+              <div className="mt-4 text-center">
+                <Link 
+                  to="/analytics" 
+                  className="text-indigo-600 hover:text-indigo-500 text-sm font-medium"
+                >
+                  View All Categories →
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Project Summary */}
       <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
