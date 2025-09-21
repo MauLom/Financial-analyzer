@@ -97,11 +97,6 @@ router.get('/overview', authenticateToken, async (req, res) => {
       }
     });
 
-    formattedTransactionSummary.net = 
-      formattedTransactionSummary.income - 
-      formattedTransactionSummary.expenses - 
-      formattedTransactionSummary.investments;
-
     // Format project summary
     const formattedProjectSummary = projectSummary.length > 0 ? {
       total_projects: projectSummary[0].total_projects || 0,
@@ -119,10 +114,105 @@ router.get('/overview', authenticateToken, async (req, res) => {
       total_returns: 0
     };
 
+    // Calculate net worth including project returns
+    formattedTransactionSummary.net = 
+      formattedTransactionSummary.income - 
+      formattedTransactionSummary.expenses - 
+      formattedTransactionSummary.investments + 
+      formattedProjectSummary.total_returns;
+
+    // Get previous period data for comparison (for change indicators)
+    const prevStartDate = new Date();
+    prevStartDate.setMonth(prevStartDate.getMonth() - (months * 2));
+    const prevEndDate = new Date();
+    prevEndDate.setMonth(prevEndDate.getMonth() - months);
+
+    // Get previous period transaction summary
+    const prevTransactionSummary = await Transaction.aggregate([
+      { 
+        $match: { 
+          user_id: new mongoose.Types.ObjectId(userId),
+          date: { $gte: prevStartDate, $lt: prevEndDate }
+        }
+      },
+      {
+        $group: {
+          _id: '$type',
+          total_amount: { $sum: '$amount' },
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Get previous period project returns
+    const prevTotalReturns = await ProjectReturn.aggregate([
+      {
+        $lookup: {
+          from: 'projects',
+          localField: 'project_id',
+          foreignField: '_id',
+          as: 'project'
+        }
+      },
+      {
+        $match: {
+          'project.user_id': new mongoose.Types.ObjectId(userId),
+          return_date: { $gte: prevStartDate, $lt: prevEndDate }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          total_returns: { $sum: '$return_amount' }
+        }
+      }
+    ]);
+
+    // Format previous period transaction summary
+    const prevFormattedSummary = {
+      income: 0,
+      expenses: 0,
+      investments: 0,
+      net: 0
+    };
+
+    prevTransactionSummary.forEach(item => {
+      if (item._id === 'income') {
+        prevFormattedSummary.income = item.total_amount;
+      } else if (item._id === 'expense') {
+        prevFormattedSummary.expenses = item.total_amount;
+      } else if (item._id === 'investment') {
+        prevFormattedSummary.investments = item.total_amount;
+      }
+    });
+
+    const prevReturns = prevTotalReturns.length > 0 ? prevTotalReturns[0].total_returns : 0;
+    prevFormattedSummary.net = 
+      prevFormattedSummary.income - 
+      prevFormattedSummary.expenses - 
+      prevFormattedSummary.investments + 
+      prevReturns;
+
+    // Calculate percentage changes
+    const calculateChange = (current, previous) => {
+      if (previous === 0) {
+        return current > 0 ? 100 : 0;
+      }
+      return ((current - previous) / Math.abs(previous)) * 100;
+    };
+
+    const changes = {
+      income: calculateChange(formattedTransactionSummary.income, prevFormattedSummary.income),
+      expenses: calculateChange(formattedTransactionSummary.expenses, prevFormattedSummary.expenses),
+      investments: calculateChange(formattedTransactionSummary.investments, prevFormattedSummary.investments),
+      net: calculateChange(formattedTransactionSummary.net, prevFormattedSummary.net)
+    };
+
     res.json({
       period_months: parseInt(months),
       transaction_summary: formattedTransactionSummary,
-      project_summary: formattedProjectSummary
+      project_summary: formattedProjectSummary,
+      changes: changes
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

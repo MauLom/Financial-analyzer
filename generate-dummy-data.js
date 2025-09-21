@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const { connectDB } = require('./backend/models/mongodb');
 const Transaction = require('./backend/models/Transaction');
 const Project = require('./backend/models/Project');

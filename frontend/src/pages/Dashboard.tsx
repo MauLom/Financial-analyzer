@@ -17,13 +17,14 @@ const Dashboard: React.FC = () => {
   const [overview, setOverview] = useState<FinancialOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedPeriod, setSelectedPeriod] = useState(12);
   const { t } = useLanguage();
 
   useEffect(() => {
     const fetchOverview = async () => {
       try {
         setLoading(true);
-        const data = await analyticsApi.getOverview(12);
+        const data = await analyticsApi.getOverview(selectedPeriod);
         setOverview(data);
       } catch (err) {
         setError('Failed to load dashboard data');
@@ -34,7 +35,7 @@ const Dashboard: React.FC = () => {
     };
 
     fetchOverview();
-  }, []);
+  }, [selectedPeriod]);
 
   if (loading) {
     return (
@@ -61,39 +62,45 @@ const Dashboard: React.FC = () => {
 
   if (!overview) return null;
 
-  const { transaction_summary: summary, project_summary: projects } = overview;
+  const { transaction_summary: summary, project_summary: projects, changes } = overview;
+
+  const formatChange = (changePercent: number) => {
+    if (Math.abs(changePercent) < 0.01) return '0.0%';
+    const sign = changePercent >= 0 ? '+' : '';
+    return `${sign}${changePercent.toFixed(1)}%`;
+  };
 
   const stats = [
     {
       name: t('dashboard.totalIncome'),
       value: formatCurrency(summary.income),
       icon: TrendingUp,
-      change: '+12.5%',
-      changeType: 'positive',
+      change: formatChange(changes.income),
+      changeType: changes.income >= 0 ? 'positive' : 'negative',
       color: 'text-green-600 bg-green-50',
     },
     {
       name: t('dashboard.totalExpenses'),
       value: formatCurrency(summary.expenses),
       icon: TrendingDown,
-      change: '+8.2%',
-      changeType: 'negative',
+      change: formatChange(changes.expenses),
+      changeType: changes.expenses <= 0 ? 'positive' : 'negative', // Lower expenses are positive
       color: 'text-red-600 bg-red-50',
     },
     {
       name: t('dashboard.netWorth'),
       value: formatCurrency(summary.net),
       icon: DollarSign,
-      change: summary.net > 0 ? '+4.3%' : '-2.1%',
-      changeType: summary.net > 0 ? 'positive' : 'negative',
-      color: summary.net > 0 ? 'text-green-600 bg-green-50' : 'text-red-600 bg-red-50',
+      change: formatChange(changes.net),
+      changeType: changes.net >= 0 ? 'positive' : 'negative',
+      color: summary.net >= 0 ? 'text-green-600 bg-green-50' : 'text-red-600 bg-red-50',
     },
     {
       name: t('dashboard.totalInvestments'),
       value: formatCurrency(summary.investments),
       icon: PieChart,
-      change: '+15.8%',
-      changeType: 'positive',
+      change: formatChange(changes.investments),
+      changeType: changes.investments >= 0 ? 'positive' : 'negative',
       color: 'text-blue-600 bg-blue-50',
     },
   ];
@@ -108,6 +115,18 @@ const Dashboard: React.FC = () => {
           <p className="mt-1 text-sm text-gray-500">
             {t('dashboard.overview').replace('{{months}}', overview.period_months.toString())}
           </p>
+        </div>
+        <div className="mt-4 md:mt-0">
+          <select
+            value={selectedPeriod}
+            onChange={(e) => setSelectedPeriod(Number(e.target.value))}
+            className="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          >
+            <option value={3}>Last 3 months</option>
+            <option value={6}>Last 6 months</option>
+            <option value={12}>Last 12 months</option>
+            <option value={24}>Last 24 months</option>
+          </select>
         </div>
       </div>
 
