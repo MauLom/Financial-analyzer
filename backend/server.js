@@ -3,6 +3,7 @@ const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
 
+const { initializeDatabase } = require('./models/database-mongo');
 const transactionRoutes = require('./routes/transactions');
 const projectRoutes = require('./routes/projects');
 const analyticsRoutes = require('./routes/analytics');
@@ -62,8 +63,14 @@ app.use((error, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// Initialize database and start server
+initializeDatabase().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}).catch((err) => {
+  console.error('Failed to initialize database:', err);
+  process.exit(1);
 });
 
 module.exports = app;
