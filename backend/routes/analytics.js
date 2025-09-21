@@ -509,27 +509,70 @@ router.get('/insights/investments', authenticateToken, async (req, res) => {
 // GET settings
 router.get('/settings', async (req, res) => {
   try {
+    // Development mode fallback
+    if (process.env.NODE_ENV === 'development' && (!Setting || require('../models/mongodb').mongoose.connection.readyState !== 1)) {
+      const defaultSettings = {
+        inflation_rate: '3.5',
+        cost_of_living_increase: '2.8',
+        categories: [
+          'Food & Dining', 'Transportation', 'Shopping', 'Entertainment', 'Bills & Utilities',
+          'Healthcare', 'Education', 'Travel', 'Salary', 'Freelance', 'Investment',
+          'Business', 'Gift', 'Other'
+        ]
+      };
+      return res.json(defaultSettings);
+    }
 
     const settings = await Setting.find({});
-
     
     const settingsObj = {};
     settings.forEach(setting => {
-      settingsObj[setting.key] = setting.value;
+      // Parse categories as JSON array if it exists
+      if (setting.key === 'categories' && setting.value) {
+        try {
+          settingsObj[setting.key] = JSON.parse(setting.value);
+        } catch (e) {
+          // If parsing fails, treat as empty array
+          settingsObj[setting.key] = [];
+        }
+      } else {
+        settingsObj[setting.key] = setting.value;
+      }
     });
     
+    // Set default categories if not found
+    if (!settingsObj.categories) {
+      settingsObj.categories = [
+        'Food & Dining', 'Transportation', 'Shopping', 'Entertainment', 'Bills & Utilities',
+        'Healthcare', 'Education', 'Travel', 'Salary', 'Freelance', 'Investment',
+        'Business', 'Gift', 'Other'
+      ];
+    }
+    
     res.json(settingsObj);
-
   } catch (error) {
     res.status(500).json({ error: error.message });
-
   }
 });
 
 // PUT update settings
 router.put('/settings', async (req, res) => {
   try {
-    const { inflation_rate, cost_of_living_increase } = req.body;
+    const { inflation_rate, cost_of_living_increase, categories } = req.body;
+    
+    // Development mode fallback - just return the posted settings
+    if (process.env.NODE_ENV === 'development' && (!Setting || require('../models/mongodb').mongoose.connection.readyState !== 1)) {
+      const settings = {
+        inflation_rate: inflation_rate || '3.5',
+        cost_of_living_increase: cost_of_living_increase || '2.8',
+        categories: categories || [
+          'Food & Dining', 'Transportation', 'Shopping', 'Entertainment', 'Bills & Utilities',
+          'Healthcare', 'Education', 'Travel', 'Salary', 'Freelance', 'Investment',
+          'Business', 'Gift', 'Other'
+        ]
+      };
+      return res.json(settings);
+    }
     
     const updates = [];
     if (inflation_rate !== undefined) {
@@ -538,9 +581,12 @@ router.put('/settings', async (req, res) => {
     if (cost_of_living_increase !== undefined) {
       updates.push(['cost_of_living_increase', cost_of_living_increase]);
     }
+    if (categories !== undefined) {
+      // Store categories as JSON string
+      updates.push(['categories', JSON.stringify(categories)]);
+    }
     
     if (updates.length === 0) {
-
       return res.status(400).json({ error: 'No settings to update' });
     }
     
@@ -557,15 +603,30 @@ router.put('/settings', async (req, res) => {
     const allSettings = await Setting.find({});
     const settingsObj = {};
     allSettings.forEach(setting => {
-
-      settingsObj[setting.key] = setting.value;
+      // Parse categories as JSON array if it exists
+      if (setting.key === 'categories' && setting.value) {
+        try {
+          settingsObj[setting.key] = JSON.parse(setting.value);
+        } catch (e) {
+          settingsObj[setting.key] = [];
+        }
+      } else {
+        settingsObj[setting.key] = setting.value;
+      }
     });
     
+    // Set default categories if not found
+    if (!settingsObj.categories) {
+      settingsObj.categories = [
+        'Food & Dining', 'Transportation', 'Shopping', 'Entertainment', 'Bills & Utilities',
+        'Healthcare', 'Education', 'Travel', 'Salary', 'Freelance', 'Investment',
+        'Business', 'Gift', 'Other'
+      ];
+    }
+    
     res.json(settingsObj);
-
   } catch (error) {
     res.status(500).json({ error: error.message });
-
   }
 });
 

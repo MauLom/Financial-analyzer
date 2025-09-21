@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Filter } from 'lucide-react';
-import { transactionApi } from '../services/api';
+import { transactionApi, analyticsApi } from '../services/api';
 import { Transaction } from '../types';
 import { formatCurrency, formatDate, getTransactionTypeColor } from '../utils/format';
 
@@ -30,24 +30,33 @@ const Transactions: React.FC = () => {
     date: new Date().toISOString().split('T')[0],
   });
 
+  const [categories, setCategories] = useState<string[]>([]);
+
   useEffect(() => {
-    const fetchTransactions = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
+        
+        // Fetch transactions
         const filterParams = Object.fromEntries(
           Object.entries(filter).filter(([_, value]) => value !== '')
         );
-        const data = await transactionApi.getAll(filterParams);
-        setTransactions(data);
+        const transactionsData = await transactionApi.getAll(filterParams);
+        setTransactions(transactionsData);
+        
+        // Fetch categories from settings
+        const categoriesData = await analyticsApi.getCategories();
+        setCategories(categoriesData);
+        
       } catch (err) {
-        setError('Failed to load transactions');
+        setError('Failed to load data');
         console.error(err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchTransactions();
+    fetchData();
   }, [filter]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -111,13 +120,7 @@ const Transactions: React.FC = () => {
     });
   };
 
-  const categories = [
-    'Food & Dining', 'Transportation', 'Shopping', 'Entertainment', 'Bills & Utilities',
-    'Healthcare', 'Education', 'Travel', 'Salary', 'Freelance', 'Investment',
-    'Business', 'Gift', 'Other'
-  ];
-
-  if (loading && transactions.length === 0) {
+  if (loading && transactions.length === 0 && categories.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="loading-spinner"></div>
