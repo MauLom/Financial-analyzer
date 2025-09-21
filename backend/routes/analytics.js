@@ -509,6 +509,20 @@ router.get('/insights/investments', authenticateToken, async (req, res) => {
 // GET settings
 router.get('/settings', async (req, res) => {
   try {
+    // Development mode fallback
+    if (process.env.NODE_ENV === 'development' && (!Setting || require('../models/mongodb').mongoose.connection.readyState !== 1)) {
+      const defaultSettings = {
+        inflation_rate: '3.5',
+        cost_of_living_increase: '2.8',
+        categories: [
+          'Food & Dining', 'Transportation', 'Shopping', 'Entertainment', 'Bills & Utilities',
+          'Healthcare', 'Education', 'Travel', 'Salary', 'Freelance', 'Investment',
+          'Business', 'Gift', 'Other'
+        ]
+      };
+      return res.json(defaultSettings);
+    }
+
     const settings = await Setting.find({});
     
     const settingsObj = {};
@@ -545,6 +559,20 @@ router.get('/settings', async (req, res) => {
 router.put('/settings', async (req, res) => {
   try {
     const { inflation_rate, cost_of_living_increase, categories } = req.body;
+    
+    // Development mode fallback - just return the posted settings
+    if (process.env.NODE_ENV === 'development' && (!Setting || require('../models/mongodb').mongoose.connection.readyState !== 1)) {
+      const settings = {
+        inflation_rate: inflation_rate || '3.5',
+        cost_of_living_increase: cost_of_living_increase || '2.8',
+        categories: categories || [
+          'Food & Dining', 'Transportation', 'Shopping', 'Entertainment', 'Bills & Utilities',
+          'Healthcare', 'Education', 'Travel', 'Salary', 'Freelance', 'Investment',
+          'Business', 'Gift', 'Other'
+        ]
+      };
+      return res.json(settings);
+    }
     
     const updates = [];
     if (inflation_rate !== undefined) {

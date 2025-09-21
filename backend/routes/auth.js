@@ -9,6 +9,43 @@ const { User } = require('../models/database-mongo');
 
 const router = express.Router();
 
+// Development mode login endpoint (bypass for testing)
+if (process.env.NODE_ENV === 'development') {
+  router.post('/dev-login', (req, res) => {
+    const devUser = {
+      _id: 'dev-user-id',
+      email: 'dev@example.com',
+      username: 'developer',
+      first_name: 'Developer',
+      last_name: 'User',
+      provider: 'local'
+    };
+    
+    const token = generateToken(devUser);
+    
+    res.json({
+      message: 'Development login successful',
+      user: devUser,
+      token: token
+    });
+  });
+
+  router.get('/me', (req, res) => {
+    const devUser = {
+      _id: 'dev-user-id',
+      email: 'dev@example.com',
+      username: 'developer',
+      first_name: 'Developer',
+      last_name: 'User',
+      provider: 'local'
+    };
+    
+    res.json({
+      user: devUser
+    });
+  });
+}
+
 // Configure passport strategies
 passport.use(new LocalStrategy(
   {
