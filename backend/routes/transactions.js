@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
-const { Transaction } = require('../models/database');
+const { Transaction } = require('../models/database-mongo');
 const { authenticateToken } = require('../middleware/auth');
 
 // GET all transactions (user-specific)

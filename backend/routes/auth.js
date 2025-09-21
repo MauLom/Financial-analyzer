@@ -5,7 +5,7 @@ const LocalStrategy = require('passport-local').Strategy;
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const GitHubStrategy = require('passport-github2').Strategy;
 const { generateToken } = require('../middleware/auth');
-const { User } = require('../models/database');
+const { User } = require('../models/database-mongo');
 
 const router = express.Router();
 

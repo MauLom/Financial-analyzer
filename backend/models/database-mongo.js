@@ -1,4 +1,5 @@
 const { connectDB } = require('./mongodb');
+const User = require('./User');
 const Transaction = require('./Transaction');
 const Project = require('./Project');
 const ProjectReturn = require('./ProjectReturn');
@@ -8,6 +9,12 @@ const initializeDatabase = async () => {
   try {
     // Connect to MongoDB
     await connectDB();
+
+    // Check if we're actually connected before trying to insert data
+    if (require('./mongodb').mongoose.connection.readyState !== 1) {
+      console.log('MongoDB not connected, skipping database initialization');
+      return;
+    }
 
     // Insert default settings if they don't exist
     await Setting.findOneAndUpdate(
@@ -24,13 +31,18 @@ const initializeDatabase = async () => {
 
     console.log('Default settings initialized');
   } catch (err) {
-    console.error('Error initializing database:', err);
-    throw err;
+    console.error('Error initializing database:', err.message);
+    if (process.env.NODE_ENV !== 'development') {
+      throw err;
+    } else {
+      console.log('Continuing without database initialization in development mode');
+    }
   }
 };
 
 module.exports = {
   initializeDatabase,
+  User,
   Transaction,
   Project,
   ProjectReturn,

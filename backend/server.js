@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const passport = require('passport');
-require('dotenv').config();
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const { initializeDatabase } = require('./models/database-mongo');
 const transactionRoutes = require('./routes/transactions');
@@ -75,8 +75,15 @@ initializeDatabase().then(() => {
     console.log(`Server running on port ${PORT}`);
   });
 }).catch((err) => {
-  console.error('Failed to initialize database:', err);
-  process.exit(1);
+  console.error('Failed to initialize database:', err.message);
+  if (process.env.NODE_ENV !== 'development') {
+    process.exit(1);
+  } else {
+    console.log('Starting server anyway in development mode...');
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT} (without database)`);
+    });
+  }
 });
 
 module.exports = app;

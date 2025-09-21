@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
-const { Transaction, Project, ProjectReturn, Settings } = require('../models/database');
+const { Transaction, Project, ProjectReturn, Setting } = require('../models/database-mongo');
 const { authenticateToken } = require('../middleware/auth');
 const mongoose = require('mongoose');
 
@@ -420,7 +420,7 @@ router.get('/insights/investments', authenticateToken, async (req, res) => {
 router.get('/settings', async (req, res) => {
   try {
 
-    const settings = await Settings.find({});
+    const settings = await Setting.find({});
 
     
     const settingsObj = {};
@@ -456,7 +456,7 @@ router.put('/settings', async (req, res) => {
     
     // Update settings
     await Promise.all(updates.map(([key, value]) =>
-      Settings.findOneAndUpdate(
+      Setting.findOneAndUpdate(
         { key },
         { key, value },
         { upsert: true, new: true }
@@ -464,7 +464,7 @@ router.put('/settings', async (req, res) => {
     ));
     
     // Return updated settings
-    const allSettings = await Settings.find({});
+    const allSettings = await Setting.find({});
     const settingsObj = {};
     allSettings.forEach(setting => {
 
