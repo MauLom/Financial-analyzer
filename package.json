@@ -9,9 +9,17 @@
     "build": "cd frontend && npm run build",
     "install-frontend": "cd frontend && npm install",
     "dev-frontend": "cd frontend && npm start",
+    "generate-dummy-data": "node generate-dummy-data.js",
+    "validate-migration": "node validate-migration.js",
+    "test-api": "node test-api.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["finance", "investment", "tracking", "analytics"],
+  "keywords": [
+    "finance",
+    "investment",
+    "tracking",
+    "analytics"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
@@ -20,10 +28,13 @@
     "dotenv": "^17.2.2",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.18.1",
     "multer": "^2.0.2",
     "sqlite3": "^5.1.7"
   },
   "devDependencies": {
+    "axios": "^1.12.2",
+    "mongodb-memory-server": "^10.2.1",
     "nodemon": "^3.1.10"
   }
 }
