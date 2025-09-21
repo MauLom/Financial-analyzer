@@ -1,103 +1,210 @@
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
+const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
 
-const dbPath = path.join(__dirname, '../data/financial.db');
+// MongoDB connection
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/financial_analyzer';
 
-// Create data directory if it doesn't exist
-const fs = require('fs');
-const dataDir = path.dirname(dbPath);
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-}
+mongoose.connect(MONGODB_URI)
+.then(() => {
+  console.log('Connected to MongoDB database');
+})
+.catch((err) => {
+  console.error('Error connecting to database:', err);
+});
 
-const db = new sqlite3.Database(dbPath, (err) => {
-  if (err) {
-    console.error('Error opening database:', err);
-  } else {
-    console.log('Connected to SQLite database');
-    initializeDatabase();
+// User Schema
+const userSchema = new mongoose.Schema({
+  email: { 
+    type: String, 
+    required: true, 
+    unique: true,
+    lowercase: true,
+    trim: true 
+  },
+  username: { 
+    type: String, 
+    required: true, 
+    unique: true,
+    trim: true 
+  },
+  password_hash: { 
+    type: String 
+  },
+  provider: { 
+    type: String, 
+    default: 'local',
+    enum: ['local', 'google', 'github']
+  },
+  provider_id: { 
+    type: String 
+  },
+  first_name: { 
+    type: String,
+    trim: true 
+  },
+  last_name: { 
+    type: String,
+    trim: true 
+  },
+  avatar_url: { 
+    type: String 
+  }
+}, {
+  timestamps: { 
+    createdAt: 'created_at', 
+    updatedAt: 'updated_at' 
   }
 });
 
-function initializeDatabase() {
-  db.serialize(() => {
-    // Create users table for authentication
-    db.run(`
-      CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        email TEXT UNIQUE NOT NULL,
-        username TEXT UNIQUE NOT NULL,
-        password_hash TEXT,
-        provider TEXT DEFAULT 'local',
-        provider_id TEXT,
-        first_name TEXT,
-        last_name TEXT,
-        avatar_url TEXT,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+// Transaction Schema
+const transactionSchema = new mongoose.Schema({
+  user_id: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'User', 
+    required: true 
+  },
+  type: { 
+    type: String, 
+    required: true,
+    enum: ['income', 'expense', 'investment']
+  },
+  amount: { 
+    type: Number, 
+    required: true,
+    min: 0
+  },
+  description: { 
+    type: String, 
+    required: true,
+    trim: true 
+  },
+  category: { 
+    type: String,
+    trim: true 
+  },
+  date: { 
+    type: Date, 
+    required: true 
+  }
+}, {
+  timestamps: { 
+    createdAt: 'created_at' 
+  }
+});
 
-    // Create transactions table
-    db.run(`
-      CREATE TABLE IF NOT EXISTS transactions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        type TEXT NOT NULL CHECK(type IN ('income', 'expense', 'investment')),
-        amount REAL NOT NULL,
-        description TEXT NOT NULL,
-        category TEXT,
-        date TEXT NOT NULL,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users (id)
-      )
-    `);
+// Project Schema
+const projectSchema = new mongoose.Schema({
+  user_id: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'User', 
+    required: true 
+  },
+  name: { 
+    type: String, 
+    required: true,
+    trim: true 
+  },
+  description: { 
+    type: String,
+    trim: true 
+  },
+  initial_investment: { 
+    type: Number, 
+    required: true,
+    min: 0
+  },
+  expected_return: { 
+    type: Number, 
+    required: true 
+  },
+  risk_level: { 
+    type: String,
+    enum: ['low', 'medium', 'high']
+  },
+  duration_months: { 
+    type: Number,
+    min: 1
+  },
+  status: { 
+    type: String, 
+    default: 'active',
+    enum: ['active', 'completed', 'cancelled']
+  }
+}, {
+  timestamps: { 
+    createdAt: 'created_at' 
+  }
+});
 
-    // Create projects table
-    db.run(`
-      CREATE TABLE IF NOT EXISTS projects (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        name TEXT NOT NULL,
-        description TEXT,
-        initial_investment REAL NOT NULL,
-        expected_return REAL NOT NULL,
-        risk_level TEXT CHECK(risk_level IN ('low', 'medium', 'high')),
-        duration_months INTEGER,
-        status TEXT DEFAULT 'active' CHECK(status IN ('active', 'completed', 'cancelled')),
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users (id)
-      )
-    `);
+// Project Return Schema
+const projectReturnSchema = new mongoose.Schema({
+  project_id: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Project', 
+    required: true 
+  },
+  return_amount: { 
+    type: Number, 
+    required: true 
+  },
+  return_date: { 
+    type: Date, 
+    required: true 
+  },
+  notes: { 
+    type: String,
+    trim: true 
+  }
+});
 
-    // Create project_returns table for tracking actual returns
-    db.run(`
-      CREATE TABLE IF NOT EXISTS project_returns (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        project_id INTEGER NOT NULL,
-        return_amount REAL NOT NULL,
-        return_date TEXT NOT NULL,
-        notes TEXT,
-        FOREIGN KEY (project_id) REFERENCES projects (id)
-      )
-    `);
+// Settings Schema  
+const settingsSchema = new mongoose.Schema({
+  key: { 
+    type: String, 
+    required: true, 
+    unique: true 
+  },
+  value: { 
+    type: String, 
+    required: true 
+  }
+}, {
+  timestamps: { 
+    updatedAt: 'updated_at' 
+  }
+});
 
-    // Create settings table for inflation, cost of living, etc.
-    db.run(`
-      CREATE TABLE IF NOT EXISTS settings (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL,
-        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+// Create models
+const User = mongoose.model('User', userSchema);
+const Transaction = mongoose.model('Transaction', transactionSchema);
+const Project = mongoose.model('Project', projectSchema);
+const ProjectReturn = mongoose.model('ProjectReturn', projectReturnSchema);
+const Settings = mongoose.model('Settings', settingsSchema);
 
-    // Insert default settings
-    db.run(`
-      INSERT OR IGNORE INTO settings (key, value) VALUES 
-      ('inflation_rate', '3.5'),
-      ('cost_of_living_increase', '2.8')
-    `);
-  });
-}
+// Initialize default settings
+const initializeSettings = async () => {
+  try {
+    const existingSettings = await Settings.find({});
+    if (existingSettings.length === 0) {
+      await Settings.create([
+        { key: 'inflation_rate', value: '3.5' },
+        { key: 'cost_of_living_increase', value: '2.8' }
+      ]);
+      console.log('Default settings initialized');
+    }
+  } catch (error) {
+    console.error('Error initializing settings:', error);
+  }
+};
 
-module.exports = db;
+// Initialize settings on connection
+initializeSettings();
+
+module.exports = {
+  User,
+  Transaction,
+  Project,
+  ProjectReturn,
+  Settings,
+  mongoose
+};

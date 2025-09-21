@@ -1,230 +1,191 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../models/database');
+const { Transaction } = require('../models/database');
 const { authenticateToken } = require('../middleware/auth');
 
 // GET all transactions (user-specific)
-router.get('/', authenticateToken, (req, res) => {
-  const { type, category, startDate, endDate, limit = 100 } = req.query;
-  const userId = req.user.id;
-  
-  let query = 'SELECT * FROM transactions WHERE user_id = ?';
-  const params = [userId];
+router.get('/', authenticateToken, async (req, res) => {
+  try {
+    const { type, category, startDate, endDate, limit = 100 } = req.query;
+    const userId = req.user.id;
+    
+    let filter = { user_id: userId };
 
-  if (type) {
-    query += ' AND type = ?';
-    params.push(type);
-  }
-
-  if (category) {
-    query += ' AND category = ?';
-    params.push(category);
-  }
-
-  if (startDate) {
-    query += ' AND date >= ?';
-    params.push(startDate);
-  }
-
-  if (endDate) {
-    query += ' AND date <= ?';
-    params.push(endDate);
-  }
-
-  query += ' ORDER BY date DESC, created_at DESC LIMIT ?';
-  params.push(parseInt(limit));
-
-  db.all(query, params, (err, rows) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
+    if (type) {
+      filter.type = type;
     }
-    res.json(rows);
-  });
+
+    if (category) {
+      filter.category = category;
+    }
+
+    if (startDate || endDate) {
+      filter.date = {};
+      if (startDate) filter.date.$gte = new Date(startDate);
+      if (endDate) filter.date.$lte = new Date(endDate);
+    }
+
+    const transactions = await Transaction.find(filter)
+      .sort({ date: -1, created_at: -1 })
+      .limit(parseInt(limit));
+
+    res.json(transactions);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // GET single transaction (user-specific)
-router.get('/:id', authenticateToken, (req, res) => {
-  const { id } = req.params;
-  const userId = req.user.id;
-  
-  db.get('SELECT * FROM transactions WHERE id = ? AND user_id = ?', [id, userId], (err, row) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
+router.get('/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    
+    const transaction = await Transaction.findOne({ _id: id, user_id: userId });
+    
+    if (!transaction) {
+      return res.status(404).json({ error: 'Transaction not found' });
     }
-    if (!row) {
-      res.status(404).json({ error: 'Transaction not found' });
-      return;
-    }
-    res.json(row);
-  });
+    
+    res.json(transaction);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // POST new transaction (user-specific)
-router.post('/', authenticateToken, (req, res) => {
-  const { type, amount, description, category, date } = req.body;
-  const userId = req.user.id;
-  
-  if (!type || !amount || !description || !date) {
-    res.status(400).json({ error: 'Missing required fields: type, amount, description, date' });
-    return;
-  }
-
-  if (!['income', 'expense', 'investment'].includes(type)) {
-    res.status(400).json({ error: 'Type must be income, expense, or investment' });
-    return;
-  }
-
-  if (isNaN(amount) || amount <= 0) {
-    res.status(400).json({ error: 'Amount must be a positive number' });
-    return;
-  }
-
-  const query = `
-    INSERT INTO transactions (user_id, type, amount, description, category, date)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `;
-  
-  db.run(query, [userId, type, amount, description, category || null, date], function(err) {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
+router.post('/', authenticateToken, async (req, res) => {
+  try {
+    const { type, amount, description, category, date } = req.body;
+    const userId = req.user.id;
     
-    // Return the created transaction
-    db.get('SELECT * FROM transactions WHERE id = ?', [this.lastID], (err, row) => {
-      if (err) {
-        res.status(500).json({ error: err.message });
-        return;
-      }
-      res.status(201).json(row);
-    });
-  });
+    if (!type || !amount || !description || !date) {
+      return res.status(400).json({ error: 'Missing required fields: type, amount, description, date' });
+    }
+
+    if (!['income', 'expense', 'investment'].includes(type)) {
+      return res.status(400).json({ error: 'Type must be income, expense, or investment' });
+    }
+
+    if (isNaN(amount) || amount <= 0) {
+      return res.status(400).json({ error: 'Amount must be a positive number' });
+    }
+
+    const transactionData = {
+      user_id: userId,
+      type,
+      amount: parseFloat(amount),
+      description,
+      category: category || undefined,
+      date: new Date(date)
+    };
+    
+    const newTransaction = await Transaction.create(transactionData);
+    res.status(201).json(newTransaction);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // PUT update transaction (user-specific)
-router.put('/:id', authenticateToken, (req, res) => {
-  const { id } = req.params;
-  const { type, amount, description, category, date } = req.body;
-  const userId = req.user.id;
-  
-  if (!type || !amount || !description || !date) {
-    res.status(400).json({ error: 'Missing required fields: type, amount, description, date' });
-    return;
-  }
+router.put('/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { type, amount, description, category, date } = req.body;
+    const userId = req.user.id;
+    
+    if (!type || !amount || !description || !date) {
+      return res.status(400).json({ error: 'Missing required fields: type, amount, description, date' });
+    }
 
-  if (!['income', 'expense', 'investment'].includes(type)) {
-    res.status(400).json({ error: 'Type must be income, expense, or investment' });
-    return;
-  }
+    if (!['income', 'expense', 'investment'].includes(type)) {
+      return res.status(400).json({ error: 'Type must be income, expense, or investment' });
+    }
 
-  if (isNaN(amount) || amount <= 0) {
-    res.status(400).json({ error: 'Amount must be a positive number' });
-    return;
-  }
+    if (isNaN(amount) || amount <= 0) {
+      return res.status(400).json({ error: 'Amount must be a positive number' });
+    }
 
-  const query = `
-    UPDATE transactions 
-    SET type = ?, amount = ?, description = ?, category = ?, date = ?
-    WHERE id = ? AND user_id = ?
-  `;
-  
-  db.run(query, [type, amount, description, category || null, date, id, userId], function(err) {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
+    const updateData = {
+      type,
+      amount: parseFloat(amount),
+      description,
+      category: category || undefined,
+      date: new Date(date)
+    };
+    
+    const updatedTransaction = await Transaction.findOneAndUpdate(
+      { _id: id, user_id: userId },
+      updateData,
+      { new: true }
+    );
+    
+    if (!updatedTransaction) {
+      return res.status(404).json({ error: 'Transaction not found' });
     }
     
-    if (this.changes === 0) {
-      res.status(404).json({ error: 'Transaction not found' });
-      return;
-    }
-    
-    // Return the updated transaction
-    db.get('SELECT * FROM transactions WHERE id = ?', [id], (err, row) => {
-      if (err) {
-        res.status(500).json({ error: err.message });
-        return;
-      }
-      res.json(row);
-    });
-  });
+    res.json(updatedTransaction);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // DELETE transaction (user-specific)
-router.delete('/:id', authenticateToken, (req, res) => {
-  const { id } = req.params;
-  const userId = req.user.id;
-  
-  db.run('DELETE FROM transactions WHERE id = ? AND user_id = ?', [id, userId], function(err) {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
+router.delete('/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
     
-    if (this.changes === 0) {
-      res.status(404).json({ error: 'Transaction not found' });
-      return;
+    const deletedTransaction = await Transaction.findOneAndDelete({ 
+      _id: id, 
+      user_id: userId 
+    });
+    
+    if (!deletedTransaction) {
+      return res.status(404).json({ error: 'Transaction not found' });
     }
     
     res.json({ message: 'Transaction deleted successfully' });
-  });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // GET transaction summary (user-specific)
-router.get('/summary/totals', authenticateToken, (req, res) => {
-  const { startDate, endDate } = req.query;
-  const userId = req.user.id;
-  
-  let query = `
-    SELECT 
-      type,
-      SUM(amount) as total_amount,
-      COUNT(*) as count
-    FROM transactions 
-    WHERE user_id = ?
-  `;
-  const params = [userId];
-
-  if (startDate) {
-    query += ' AND date >= ?';
-    params.push(startDate);
-  }
-
-  if (endDate) {
-    query += ' AND date <= ?';
-    params.push(endDate);
-  }
-
-  query += ' GROUP BY type';
-
-  db.all(query, params, (err, rows) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
+router.get('/summary/totals', authenticateToken, async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    const userId = req.user.id;
+    
+    let matchFilter = { user_id: userId };
+    
+    if (startDate || endDate) {
+      matchFilter.date = {};
+      if (startDate) matchFilter.date.$gte = new Date(startDate);
+      if (endDate) matchFilter.date.$lte = new Date(endDate);
     }
-    
-    const summary = {
-      income: 0,
-      expenses: 0,
-      investments: 0,
-      net: 0
-    };
-    
-    rows.forEach(row => {
-      if (row.type === 'income') {
-        summary.income = row.total_amount;
-      } else if (row.type === 'expense') {
-        summary.expenses = row.total_amount;
-      } else if (row.type === 'investment') {
-        summary.investments = row.total_amount;
+
+    const summary = await Transaction.aggregate([
+      { $match: matchFilter },
+      {
+        $group: {
+          _id: '$type',
+          total_amount: { $sum: '$amount' },
+          count: { $sum: 1 }
+        }
       }
-    });
-    
-    summary.net = summary.income - summary.expenses - summary.investments;
-    res.json(summary);
-  });
+    ]);
+
+    const result = summary.map(item => ({
+      type: item._id,
+      total_amount: item.total_amount,
+      count: item.count
+    }));
+
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 module.exports = router;

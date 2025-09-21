@@ -5,7 +5,7 @@ const LocalStrategy = require('passport-local').Strategy;
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const GitHubStrategy = require('passport-github2').Strategy;
 const { generateToken } = require('../middleware/auth');
-const db = require('../models/database');
+const { User } = require('../models/database');
 
 const router = express.Router();
 
@@ -17,21 +17,17 @@ passport.use(new LocalStrategy(
   },
   async (email, password, done) => {
     try {
-      db.get('SELECT * FROM users WHERE email = ?', [email], async (err, user) => {
-        if (err) {
-          return done(err);
-        }
-        if (!user) {
-          return done(null, false, { message: 'Invalid email or password' });
-        }
-        
-        const isValid = await bcrypt.compare(password, user.password_hash);
-        if (!isValid) {
-          return done(null, false, { message: 'Invalid email or password' });
-        }
-        
-        return done(null, user);
-      });
+      const user = await User.findOne({ email: email.toLowerCase() });
+      if (!user) {
+        return done(null, false, { message: 'Invalid email or password' });
+      }
+      
+      const isValid = await bcrypt.compare(password, user.password_hash);
+      if (!isValid) {
+        return done(null, false, { message: 'Invalid email or password' });
+      }
+      
+      return done(null, user);
     } catch (error) {
       return done(error);
     }
@@ -47,47 +43,33 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
-        const email = profile.emails[0].value;
+        const email = profile.emails[0].value.toLowerCase();
         const providerId = profile.id;
         
-        db.get('SELECT * FROM users WHERE email = ? OR (provider = ? AND provider_id = ?)', 
-          [email, 'google', providerId], (err, existingUser) => {
-          if (err) {
-            return done(err);
-          }
-          
-          if (existingUser) {
-            return done(null, existingUser);
-          }
-          
-          // Create new user
-          const userData = {
-            email: email,
-            username: profile.displayName || email.split('@')[0],
-            provider: 'google',
-            provider_id: providerId,
-            first_name: profile.name.givenName,
-            last_name: profile.name.familyName,
-            avatar_url: profile.photos[0]?.value
-          };
-          
-          db.run(
-            'INSERT INTO users (email, username, provider, provider_id, first_name, last_name, avatar_url) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [userData.email, userData.username, userData.provider, userData.provider_id, userData.first_name, userData.last_name, userData.avatar_url],
-            function(err) {
-              if (err) {
-                return done(err);
-              }
-              
-              db.get('SELECT * FROM users WHERE id = ?', [this.lastID], (err, user) => {
-                if (err) {
-                  return done(err);
-                }
-                return done(null, user);
-              });
-            }
-          );
+        let existingUser = await User.findOne({
+          $or: [
+            { email: email },
+            { provider: 'google', provider_id: providerId }
+          ]
         });
+        
+        if (existingUser) {
+          return done(null, existingUser);
+        }
+        
+        // Create new user
+        const userData = {
+          email: email,
+          username: profile.displayName || email.split('@')[0],
+          provider: 'google',
+          provider_id: providerId,
+          first_name: profile.name.givenName,
+          last_name: profile.name.familyName,
+          avatar_url: profile.photos[0]?.value
+        };
+        
+        const newUser = await User.create(userData);
+        return done(null, newUser);
       } catch (error) {
         return done(error);
       }
@@ -104,47 +86,33 @@ if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
-        const email = profile.emails?.[0]?.value || `${profile.username}@github.local`;
+        const email = (profile.emails?.[0]?.value || `${profile.username}@github.local`).toLowerCase();
         const providerId = profile.id;
         
-        db.get('SELECT * FROM users WHERE email = ? OR (provider = ? AND provider_id = ?)', 
-          [email, 'github', providerId], (err, existingUser) => {
-          if (err) {
-            return done(err);
-          }
-          
-          if (existingUser) {
-            return done(null, existingUser);
-          }
-          
-          // Create new user
-          const userData = {
-            email: email,
-            username: profile.username,
-            provider: 'github',
-            provider_id: providerId,
-            first_name: profile.displayName || profile.username,
-            last_name: '',
-            avatar_url: profile.photos[0]?.value
-          };
-          
-          db.run(
-            'INSERT INTO users (email, username, provider, provider_id, first_name, last_name, avatar_url) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [userData.email, userData.username, userData.provider, userData.provider_id, userData.first_name, userData.last_name, userData.avatar_url],
-            function(err) {
-              if (err) {
-                return done(err);
-              }
-              
-              db.get('SELECT * FROM users WHERE id = ?', [this.lastID], (err, user) => {
-                if (err) {
-                  return done(err);
-                }
-                return done(null, user);
-              });
-            }
-          );
+        let existingUser = await User.findOne({
+          $or: [
+            { email: email },
+            { provider: 'github', provider_id: providerId }
+          ]
         });
+        
+        if (existingUser) {
+          return done(null, existingUser);
+        }
+        
+        // Create new user
+        const userData = {
+          email: email,
+          username: profile.username,
+          provider: 'github',
+          provider_id: providerId,
+          first_name: profile.displayName || profile.username,
+          last_name: '',
+          avatar_url: profile.photos[0]?.value
+        };
+        
+        const newUser = await User.create(userData);
+        return done(null, newUser);
       } catch (error) {
         return done(error);
       }
@@ -162,47 +130,41 @@ router.post('/register', async (req, res) => {
   
   try {
     // Check if user already exists
-    db.get('SELECT id FROM users WHERE email = ? OR username = ?', [email, username], async (err, existingUser) => {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
-      
-      if (existingUser) {
-        return res.status(409).json({ error: 'User with this email or username already exists' });
-      }
-      
-      // Hash password
-      const saltRounds = 10;
-      const passwordHash = await bcrypt.hash(password, saltRounds);
-      
-      // Create user
-      db.run(
-        'INSERT INTO users (email, username, password_hash, provider, first_name, last_name) VALUES (?, ?, ?, ?, ?, ?)',
-        [email, username, passwordHash, 'local', first_name || '', last_name || ''],
-        function(err) {
-          if (err) {
-            return res.status(500).json({ error: err.message });
-          }
-          
-          // Get created user
-          db.get('SELECT * FROM users WHERE id = ?', [this.lastID], (err, user) => {
-            if (err) {
-              return res.status(500).json({ error: err.message });
-            }
-            
-            const token = generateToken(user);
-            const { password_hash, ...userWithoutPassword } = user;
-            
-            res.status(201).json({
-              message: 'User created successfully',
-              user: userWithoutPassword,
-              token: token
-            });
-          });
-        }
-      );
+    const existingUser = await User.findOne({
+      $or: [
+        { email: email.toLowerCase() },
+        { username: username }
+      ]
+    });
+    
+    if (existingUser) {
+      return res.status(409).json({ error: 'User with this email or username already exists' });
+    }
+    
+    // Hash password
+    const saltRounds = 10;
+    const passwordHash = await bcrypt.hash(password, saltRounds);
+    
+    // Create user
+    const newUser = await User.create({
+      email: email.toLowerCase(),
+      username: username,
+      password_hash: passwordHash,
+      provider: 'local',
+      first_name: first_name || '',
+      last_name: last_name || ''
+    });
+    
+    const token = generateToken(newUser);
+    const { password_hash, ...userWithoutPassword } = newUser.toObject();
+    
+    res.status(201).json({
+      message: 'User created successfully',
+      user: userWithoutPassword,
+      token: token
     });
   } catch (error) {
+    console.error('Registration error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -218,7 +180,7 @@ router.post('/login', (req, res, next) => {
     }
     
     const token = generateToken(user);
-    const { password_hash, ...userWithoutPassword } = user;
+    const { password_hash, ...userWithoutPassword } = user.toObject();
     
     res.json({
       message: 'Login successful',
@@ -238,7 +200,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     passport.authenticate('google', { session: false }),
     (req, res) => {
       const token = generateToken(req.user);
-      const { password_hash, ...userWithoutPassword } = req.user;
+      const { password_hash, ...userWithoutPassword } = req.user.toObject();
       
       // Redirect to frontend with token
       res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/callback?token=${token}&user=${encodeURIComponent(JSON.stringify(userWithoutPassword))}`);
@@ -256,7 +218,7 @@ if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
     passport.authenticate('github', { session: false }),
     (req, res) => {
       const token = generateToken(req.user);
-      const { password_hash, ...userWithoutPassword } = req.user;
+      const { password_hash, ...userWithoutPassword } = req.user.toObject();
       
       // Redirect to frontend with token
       res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/callback?token=${token}&user=${encodeURIComponent(JSON.stringify(userWithoutPassword))}`);
@@ -265,7 +227,7 @@ if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
 }
 
 // Get current user profile
-router.get('/me', (req, res) => {
+router.get('/me', async (req, res) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
   
@@ -276,17 +238,13 @@ router.get('/me', (req, res) => {
   try {
     const decoded = require('jsonwebtoken').verify(token, process.env.JWT_SECRET || 'your-secret-key-change-this');
     
-    db.get('SELECT * FROM users WHERE id = ?', [decoded.id], (err, user) => {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
-      if (!user) {
-        return res.status(404).json({ error: 'User not found' });
-      }
-      
-      const { password_hash, ...userWithoutPassword } = user;
-      res.json({ user: userWithoutPassword });
-    });
+    const user = await User.findById(decoded.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const { password_hash, ...userWithoutPassword } = user.toObject();
+    res.json({ user: userWithoutPassword });
   } catch (error) {
     res.status(403).json({ error: 'Invalid token' });
   }

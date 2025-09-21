@@ -1,291 +1,251 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../models/database');
+const { Project, ProjectReturn } = require('../models/database');
 const { authenticateToken } = require('../middleware/auth');
+const mongoose = require('mongoose');
 
 // GET all projects (user-specific)
-router.get('/', authenticateToken, (req, res) => {
-  const { status, risk_level } = req.query;
-  const userId = req.user.id;
-  
-  let query = 'SELECT * FROM projects WHERE user_id = ?';
-  const params = [userId];
+router.get('/', authenticateToken, async (req, res) => {
+  try {
+    const { status, risk_level } = req.query;
+    const userId = req.user.id;
+    
+    let filter = { user_id: userId };
 
-  if (status) {
-    query += ' AND status = ?';
-    params.push(status);
-  }
-
-  if (risk_level) {
-    query += ' AND risk_level = ?';
-    params.push(risk_level);
-  }
-
-  query += ' ORDER BY created_at DESC';
-
-  db.all(query, params, (err, rows) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
+    if (status) {
+      filter.status = status;
     }
-    res.json(rows);
-  });
+
+    if (risk_level) {
+      filter.risk_level = risk_level;
+    }
+
+    const projects = await Project.find(filter).sort({ created_at: -1 });
+    res.json(projects);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // GET single project with returns (user-specific)
-router.get('/:id', authenticateToken, (req, res) => {
-  const { id } = req.params;
-  const userId = req.user.id;
-  
-  db.get('SELECT * FROM projects WHERE id = ? AND user_id = ?', [id, userId], (err, project) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
+router.get('/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    
+    const project = await Project.findOne({ _id: id, user_id: userId }).lean();
+    
     if (!project) {
-      res.status(404).json({ error: 'Project not found' });
-      return;
+      return res.status(404).json({ error: 'Project not found' });
     }
 
     // Get project returns
-    db.all('SELECT * FROM project_returns WHERE project_id = ? ORDER BY return_date DESC', [id], (err, returns) => {
-      if (err) {
-        res.status(500).json({ error: err.message });
-        return;
-      }
-      
-      project.returns = returns;
-      project.total_returns = returns.reduce((sum, ret) => sum + ret.return_amount, 0);
-      project.actual_return_rate = project.initial_investment > 0 
-        ? ((project.total_returns / project.initial_investment) * 100).toFixed(2)
-        : 0;
-      
-      res.json(project);
-    });
-  });
+    const returns = await ProjectReturn.find({ project_id: id })
+      .sort({ return_date: -1 });
+    
+    project.returns = returns;
+    project.total_returns = returns.reduce((sum, ret) => sum + ret.return_amount, 0);
+    project.actual_return_rate = project.initial_investment > 0 
+      ? ((project.total_returns / project.initial_investment) * 100).toFixed(2)
+      : 0;
+    
+    res.json(project);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // POST new project (user-specific)
-router.post('/', authenticateToken, (req, res) => {
-  const { name, description, initial_investment, expected_return, risk_level, duration_months } = req.body;
-  const userId = req.user.id;
-  
-  if (!name || !initial_investment || !expected_return) {
-    res.status(400).json({ error: 'Missing required fields: name, initial_investment, expected_return' });
-    return;
-  }
-
-  if (isNaN(initial_investment) || initial_investment <= 0) {
-    res.status(400).json({ error: 'Initial investment must be a positive number' });
-    return;
-  }
-
-  if (isNaN(expected_return)) {
-    res.status(400).json({ error: 'Expected return must be a number' });
-    return;
-  }
-
-  if (risk_level && !['low', 'medium', 'high'].includes(risk_level)) {
-    res.status(400).json({ error: 'Risk level must be low, medium, or high' });
-    return;
-  }
-
-  const query = `
-    INSERT INTO projects (user_id, name, description, initial_investment, expected_return, risk_level, duration_months)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `;
-  
-  db.run(query, [userId, name, description || null, initial_investment, expected_return, risk_level || null, duration_months || null], function(err) {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
+router.post('/', authenticateToken, async (req, res) => {
+  try {
+    const { name, description, initial_investment, expected_return, risk_level, duration_months } = req.body;
+    const userId = req.user.id;
     
-    // Return the created project
-    db.get('SELECT * FROM projects WHERE id = ?', [this.lastID], (err, row) => {
-      if (err) {
-        res.status(500).json({ error: err.message });
-        return;
-      }
-      res.status(201).json(row);
-    });
-  });
+    if (!name || !initial_investment || !expected_return) {
+      return res.status(400).json({ error: 'Missing required fields: name, initial_investment, expected_return' });
+    }
+
+    if (isNaN(initial_investment) || initial_investment <= 0) {
+      return res.status(400).json({ error: 'Initial investment must be a positive number' });
+    }
+
+    if (isNaN(expected_return)) {
+      return res.status(400).json({ error: 'Expected return must be a number' });
+    }
+
+    if (risk_level && !['low', 'medium', 'high'].includes(risk_level)) {
+      return res.status(400).json({ error: 'Risk level must be low, medium, or high' });
+    }
+
+    const projectData = {
+      user_id: userId,
+      name,
+      description: description || undefined,
+      initial_investment: parseFloat(initial_investment),
+      expected_return: parseFloat(expected_return),
+      risk_level: risk_level || undefined,
+      duration_months: duration_months ? parseInt(duration_months) : undefined
+    };
+    
+    const newProject = await Project.create(projectData);
+    res.status(201).json(newProject);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // PUT update project (user-specific)
-router.put('/:id', authenticateToken, (req, res) => {
-  const { id } = req.params;
-  const { name, description, initial_investment, expected_return, risk_level, duration_months, status } = req.body;
-  const userId = req.user.id;
-  
-  if (!name || !initial_investment || !expected_return) {
-    res.status(400).json({ error: 'Missing required fields: name, initial_investment, expected_return' });
-    return;
-  }
+router.put('/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description, initial_investment, expected_return, risk_level, duration_months, status } = req.body;
+    const userId = req.user.id;
+    
+    if (!name || !initial_investment || !expected_return) {
+      return res.status(400).json({ error: 'Missing required fields: name, initial_investment, expected_return' });
+    }
 
-  if (isNaN(initial_investment) || initial_investment <= 0) {
-    res.status(400).json({ error: 'Initial investment must be a positive number' });
-    return;
-  }
+    if (isNaN(initial_investment) || initial_investment <= 0) {
+      return res.status(400).json({ error: 'Initial investment must be a positive number' });
+    }
 
-  if (isNaN(expected_return)) {
-    res.status(400).json({ error: 'Expected return must be a number' });
-    return;
-  }
+    if (isNaN(expected_return)) {
+      return res.status(400).json({ error: 'Expected return must be a number' });
+    }
 
-  if (risk_level && !['low', 'medium', 'high'].includes(risk_level)) {
-    res.status(400).json({ error: 'Risk level must be low, medium, or high' });
-    return;
-  }
+    if (risk_level && !['low', 'medium', 'high'].includes(risk_level)) {
+      return res.status(400).json({ error: 'Risk level must be low, medium, or high' });
+    }
 
-  if (status && !['active', 'completed', 'cancelled'].includes(status)) {
-    res.status(400).json({ error: 'Status must be active, completed, or cancelled' });
-    return;
-  }
+    if (status && !['active', 'completed', 'cancelled'].includes(status)) {
+      return res.status(400).json({ error: 'Status must be active, completed, or cancelled' });
+    }
 
-  const query = `
-    UPDATE projects 
-    SET name = ?, description = ?, initial_investment = ?, expected_return = ?, 
-        risk_level = ?, duration_months = ?, status = ?
-    WHERE id = ? AND user_id = ?
-  `;
-  
-  db.run(query, [name, description || null, initial_investment, expected_return, 
-                 risk_level || null, duration_months || null, status || 'active', id, userId], function(err) {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
+    const updateData = {
+      name,
+      description: description || undefined,
+      initial_investment: parseFloat(initial_investment),
+      expected_return: parseFloat(expected_return),
+      risk_level: risk_level || undefined,
+      duration_months: duration_months ? parseInt(duration_months) : undefined,
+      status: status || 'active'
+    };
+    
+    const updatedProject = await Project.findOneAndUpdate(
+      { _id: id, user_id: userId },
+      updateData,
+      { new: true }
+    );
+    
+    if (!updatedProject) {
+      return res.status(404).json({ error: 'Project not found' });
     }
     
-    if (this.changes === 0) {
-      res.status(404).json({ error: 'Project not found' });
-      return;
-    }
-    
-    // Return the updated project
-    db.get('SELECT * FROM projects WHERE id = ?', [id], (err, row) => {
-      if (err) {
-        res.status(500).json({ error: err.message });
-        return;
-      }
-      res.json(row);
-    });
-  });
+    res.json(updatedProject);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // DELETE project (user-specific)
-router.delete('/:id', authenticateToken, (req, res) => {
-  const { id } = req.params;
-  const userId = req.user.id;
-  
-  // First verify the project belongs to the user
-  db.get('SELECT id FROM projects WHERE id = ? AND user_id = ?', [id, userId], (err, project) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
+router.delete('/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    
+    // First verify the project belongs to the user
+    const project = await Project.findOne({ _id: id, user_id: userId });
     if (!project) {
-      res.status(404).json({ error: 'Project not found' });
-      return;
+      return res.status(404).json({ error: 'Project not found' });
     }
     
     // Delete project returns first
-    db.run('DELETE FROM project_returns WHERE project_id = ?', [id], (err) => {
-      if (err) {
-        res.status(500).json({ error: err.message });
-        return;
-      }
-      
-      // Then delete the project
-      db.run('DELETE FROM projects WHERE id = ?', [id], function(err) {
-        if (err) {
-          res.status(500).json({ error: err.message });
-          return;
-        }
-        
-        res.json({ message: 'Project deleted successfully' });
-      });
-    });
-  });
+    await ProjectReturn.deleteMany({ project_id: id });
+    
+    // Then delete the project
+    await Project.findByIdAndDelete(id);
+    
+    res.json({ message: 'Project deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // POST add project return (user-specific)
-router.post('/:id/returns', authenticateToken, (req, res) => {
-  const { id } = req.params;
-  const { return_amount, return_date, notes } = req.body;
-  const userId = req.user.id;
-  
-  if (!return_amount || !return_date) {
-    res.status(400).json({ error: 'Missing required fields: return_amount, return_date' });
-    return;
-  }
-
-  if (isNaN(return_amount)) {
-    res.status(400).json({ error: 'Return amount must be a number' });
-    return;
-  }
-
-  // Check if project exists and belongs to user
-  db.get('SELECT id FROM projects WHERE id = ? AND user_id = ?', [id, userId], (err, project) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
-    if (!project) {
-      res.status(404).json({ error: 'Project not found' });
-      return;
-    }
-
-    const query = `
-      INSERT INTO project_returns (project_id, return_amount, return_date, notes)
-      VALUES (?, ?, ?, ?)
-    `;
+router.post('/:id/returns', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { return_amount, return_date, notes } = req.body;
+    const userId = req.user.id;
     
-    db.run(query, [id, return_amount, return_date, notes || null], function(err) {
-      if (err) {
-        res.status(500).json({ error: err.message });
-        return;
-      }
-      
-      // Return the created return entry
-      db.get('SELECT * FROM project_returns WHERE id = ?', [this.lastID], (err, row) => {
-        if (err) {
-          res.status(500).json({ error: err.message });
-          return;
-        }
-        res.status(201).json(row);
-      });
-    });
-  });
+    if (!return_amount || !return_date) {
+      return res.status(400).json({ error: 'Missing required fields: return_amount, return_date' });
+    }
+
+    if (isNaN(return_amount)) {
+      return res.status(400).json({ error: 'Return amount must be a number' });
+    }
+
+    // Check if project exists and belongs to user
+    const project = await Project.findOne({ _id: id, user_id: userId });
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    const returnData = {
+      project_id: id,
+      return_amount: parseFloat(return_amount),
+      return_date: new Date(return_date),
+      notes: notes || undefined
+    };
+    
+    const newReturn = await ProjectReturn.create(returnData);
+    res.status(201).json(newReturn);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // GET project rankings (user-specific)
-router.get('/rankings/best', authenticateToken, (req, res) => {
-  const userId = req.user.id;
-  const query = `
-    SELECT 
-      p.*,
-      COALESCE(SUM(pr.return_amount), 0) as total_returns,
-      CASE 
-        WHEN p.initial_investment > 0 
-        THEN (COALESCE(SUM(pr.return_amount), 0) / p.initial_investment * 100)
-        ELSE 0 
-      END as actual_return_rate,
-      COUNT(pr.id) as return_count
-    FROM projects p
-    LEFT JOIN project_returns pr ON p.id = pr.project_id
-    WHERE p.status = 'active' AND p.user_id = ?
-    GROUP BY p.id
-    ORDER BY actual_return_rate DESC, expected_return DESC
-  `;
+router.get('/rankings/best', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const projects = await Project.aggregate([
+      { $match: { user_id: new mongoose.Types.ObjectId(userId), status: 'active' } },
+      {
+        $lookup: {
+          from: 'projectreturns',
+          localField: '_id',
+          foreignField: 'project_id',
+          as: 'returns'
+        }
+      },
+      {
+        $addFields: {
+          total_returns: { $sum: '$returns.return_amount' },
+          return_count: { $size: '$returns' },
+          actual_return_rate: {
+            $cond: {
+              if: { $gt: ['$initial_investment', 0] },
+              then: { 
+                $multiply: [
+                  { $divide: [{ $sum: '$returns.return_amount' }, '$initial_investment'] },
+                  100
+                ]
+              },
+              else: 0
+            }
+          }
+        }
+      },
+      { $sort: { actual_return_rate: -1, expected_return: -1 } }
+    ]);
 
-  db.all(query, [userId], (err, rows) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
-    res.json(rows);
-  });
+    res.json(projects);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 module.exports = router;

@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const db = require('../models/database');
+const { User } = require('../models/database');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
 
@@ -45,7 +45,7 @@ const optionalAuth = (req, res, next) => {
 const generateToken = (user) => {
   return jwt.sign(
     { 
-      id: user.id, 
+      id: user._id, 
       email: user.email, 
       username: user.username 
     },
