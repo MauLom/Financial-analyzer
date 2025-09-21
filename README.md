@@ -8,6 +8,7 @@ A comprehensive financial tracking and analysis web application built with Node.
 - Project/investment management
 - Financial analytics and insights
 - Growth simulation
+- **Real-time Market Signals**: Live market indices, economic indicators, and sector performance powered by Alpha Vantage API
 - Customizable settings (inflation rates, cost of living)
 
 ## Setup
@@ -93,6 +94,14 @@ docker run --name mongodb -p 27017:27017 -d mongo:latest
    - `PORT`: Server port (default: 5000)
    - `NODE_ENV`: Node environment (development, production, test)
    - `REACT_APP_API_URL`: Frontend API base URL (default: http://localhost:5000/api)
+   - `ALPHA_VANTAGE_API_KEY`: Alpha Vantage API key for market data (optional - falls back to demo data)
+
+   **Alpha Vantage Integration:**
+   To enable real-time market signals on the dashboard, get a free API key from [Alpha Vantage](https://www.alphavantage.co/support/#api-key) and add it to your `.env` file:
+   ```bash
+   ALPHA_VANTAGE_API_KEY=your_api_key_here
+   ```
+   Without an API key, the system displays demo financial data for testing purposes.
 
 ### Generate Sample Data
 

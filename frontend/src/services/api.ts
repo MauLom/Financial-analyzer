@@ -12,6 +12,9 @@ import {
   Settings,
   User,
   AuthResponse,
+  MarketIndex,
+  EconomicIndicator,
+  SectorPerformance,
 } from '../types';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.1.5:5000/api';
@@ -153,6 +156,16 @@ export const analyticsApi = {
     
   getCategories: (): Promise<string[]> =>
     api.get('/analytics/settings').then(res => res.data.categories || []),
+
+  // Market signals endpoints
+  getMarketIndices: (): Promise<MarketIndex[]> =>
+    api.get('/analytics/market/indices').then(res => res.data),
+
+  getEconomicIndicators: (): Promise<EconomicIndicator[]> =>
+    api.get('/analytics/market/economic-indicators').then(res => res.data),
+
+  getSectorPerformance: (): Promise<SectorPerformance[]> =>
+    api.get('/analytics/market/sectors').then(res => res.data),
 };
 
 export default api;
