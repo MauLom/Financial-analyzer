@@ -1,10 +1,12 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
-
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, './.env') });
 
 // MongoDB connection
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/financial_analyzer';
 
+console.log('MongoDB URI:', MONGODB_URI ? 'URI loaded successfully' : 'URI not found');
 
 mongoose.connect(MONGODB_URI)
 .then(() => {

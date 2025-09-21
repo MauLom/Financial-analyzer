@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const passport = require('passport');
-require('dotenv').config({ path: path.join(__dirname, '.env') });
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const { initializeDatabase } = require('./models/database-mongo');
 const transactionRoutes = require('./routes/transactions');
