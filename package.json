@@ -9,6 +9,7 @@
     "build": "cd frontend && npm run build",
     "install-frontend": "cd frontend && npm install",
     "dev-frontend": "cd frontend && npm start",
+    "generate-dummy-data": "node generate-dummy-data.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [

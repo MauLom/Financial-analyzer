@@ -1,173 +1,195 @@
 const express = require('express');
 const router = express.Router();
-const { Transaction, Project, ProjectReturn } = require('../models/database-mongo');
+const { Transaction, Project, ProjectReturn, Setting } = require('../models/database-mongo');
 
 // GET financial overview
-router.get('/overview', (req, res) => {
-  const { months = 12 } = req.query;
-  const startDate = new Date();
-  startDate.setMonth(startDate.getMonth() - months);
-  const startDateStr = startDate.toISOString().split('T')[0];
+router.get('/overview', async (req, res) => {
+  try {
+    const { months = 12 } = req.query;
+    const startDate = new Date();
+    startDate.setMonth(startDate.getMonth() - months);
 
-  // Get transaction summary
-  const transactionQuery = `
-    SELECT 
-      type,
-      SUM(amount) as total_amount,
-      COUNT(*) as count
-    FROM transactions 
-    WHERE date >= ?
-    GROUP BY type
-  `;
-
-  db.all(transactionQuery, [startDateStr], (err, transactionData) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
+    // Get transaction summary
+    const transactionData = await Transaction.aggregate([
+      { $match: { date: { $gte: startDate } } },
+      {
+        $group: {
+          _id: '$type',
+          total_amount: { $sum: '$amount' },
+          count: { $sum: 1 }
+        }
+      }
+    ]);
 
     // Get project summary
-    const projectQuery = `
-      SELECT 
-        COUNT(*) as total_projects,
-        SUM(initial_investment) as total_invested,
-        AVG(expected_return) as avg_expected_return,
-        COUNT(CASE WHEN status = 'active' THEN 1 END) as active_projects,
-        COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_projects
-      FROM projects
-    `;
-
-    db.get(projectQuery, [], (err, projectData) => {
-      if (err) {
-        res.status(500).json({ error: err.message });
-        return;
-      }
-
-      // Get total returns
-      const returnsQuery = `
-        SELECT SUM(return_amount) as total_returns
-        FROM project_returns pr
-        JOIN projects p ON pr.project_id = p.id
-        WHERE pr.return_date >= ?
-      `;
-
-      db.get(returnsQuery, [startDateStr], (err, returnsData) => {
-        if (err) {
-          res.status(500).json({ error: err.message });
-          return;
+    const projectData = await Project.aggregate([
+      {
+        $group: {
+          _id: null,
+          total_projects: { $sum: 1 },
+          total_invested: { $sum: '$initial_investment' },
+          avg_expected_return: { $avg: '$expected_return' },
+          active_projects: {
+            $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] }
+          },
+          completed_projects: {
+            $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] }
+          }
         }
+      }
+    ]);
 
-        const summary = {
-          income: 0,
-          expenses: 0,
-          investments: 0,
-          net: 0
-        };
+    // Get total returns
+    const returnsData = await ProjectReturn.aggregate([
+      {
+        $group: {
+          _id: null,
+          total_returns: { $sum: '$return_amount' }
+        }
+      }
+    ]);
 
-        transactionData.forEach(row => {
-          if (row.type === 'income') {
-            summary.income = row.total_amount;
-          } else if (row.type === 'expense') {
-            summary.expenses = row.total_amount;
-          } else if (row.type === 'investment') {
-            summary.investments = row.total_amount;
-          }
-        });
+    const summary = {
+      income: 0,
+      expenses: 0,
+      investments: 0
+    };
 
-        summary.net = summary.income - summary.expenses - summary.investments;
-
-        res.json({
-          period_months: parseInt(months),
-          transaction_summary: summary,
-          project_summary: {
-            total_projects: projectData.total_projects || 0,
-            total_invested: projectData.total_invested || 0,
-            avg_expected_return: projectData.avg_expected_return || 0,
-            active_projects: projectData.active_projects || 0,
-            completed_projects: projectData.completed_projects || 0,
-            total_returns: returnsData.total_returns || 0
-          }
-        });
-      });
+    transactionData.forEach(row => {
+      if (row._id === 'income') {
+        summary.income = row.total_amount;
+      } else if (row._id === 'expense') {
+        summary.expenses = row.total_amount;
+      } else if (row._id === 'investment') {
+        summary.investments = row.total_amount;
+      }
     });
-  });
+
+    summary.net = summary.income - summary.expenses - summary.investments;
+
+    const projectSummary = projectData[0] || {
+      total_projects: 0,
+      total_invested: 0,
+      avg_expected_return: 0,
+      active_projects: 0,
+      completed_projects: 0
+    };
+
+    res.json({
+      period_months: parseInt(months),
+      transaction_summary: summary,
+      project_summary: {
+        total_projects: projectSummary.total_projects,
+        total_invested: projectSummary.total_invested,
+        avg_expected_return: projectSummary.avg_expected_return,
+        active_projects: projectSummary.active_projects,
+        completed_projects: projectSummary.completed_projects,
+        total_returns: returnsData[0]?.total_returns || 0
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // GET monthly trends
-router.get('/trends/monthly', (req, res) => {
-  const { months = 12 } = req.query;
-  const startDate = new Date();
-  startDate.setMonth(startDate.getMonth() - months);
-  const startDateStr = startDate.toISOString().split('T')[0];
+router.get('/trends/monthly', async (req, res) => {
+  try {
+    const { months = 12 } = req.query;
+    const startDate = new Date();
+    startDate.setMonth(startDate.getMonth() - months);
 
-  const query = `
-    SELECT 
-      strftime('%Y-%m', date) as month,
-      type,
-      SUM(amount) as total_amount,
-      COUNT(*) as count
-    FROM transactions 
-    WHERE date >= ?
-    GROUP BY strftime('%Y-%m', date), type
-    ORDER BY month DESC, type
-  `;
-
-  db.all(query, [startDateStr], (err, rows) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
+    const monthlyData = await Transaction.aggregate([
+      { $match: { date: { $gte: startDate } } },
+      {
+        $group: {
+          _id: {
+            month: { $dateToString: { format: '%Y-%m', date: '$date' } },
+            type: '$type'
+          },
+          total_amount: { $sum: '$amount' },
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $sort: { '_id.month': -1, '_id.type': 1 }
+      }
+    ]);
 
     // Group by month
-    const monthlyData = {};
-    rows.forEach(row => {
-      if (!monthlyData[row.month]) {
-        monthlyData[row.month] = {
-          month: row.month,
+    const groupedData = {};
+    monthlyData.forEach(row => {
+      const month = row._id.month;
+      if (!groupedData[month]) {
+        groupedData[month] = {
+          month: month,
           income: 0,
           expenses: 0,
           investments: 0,
           net: 0
         };
       }
-      monthlyData[row.month][row.type === 'expense' ? 'expenses' : row.type] = row.total_amount;
+
+      if (row._id.type === 'income') {
+        groupedData[month].income = row.total_amount;
+      } else if (row._id.type === 'expense') {
+        groupedData[month].expenses = row.total_amount;
+      } else if (row._id.type === 'investment') {
+        groupedData[month].investments = row.total_amount;
+      }
     });
 
     // Calculate net for each month
-    Object.values(monthlyData).forEach(month => {
+    Object.values(groupedData).forEach(month => {
       month.net = month.income - month.expenses - month.investments;
     });
 
-    res.json(Object.values(monthlyData).sort((a, b) => a.month.localeCompare(b.month)));
-  });
+    res.json(Object.values(groupedData).sort((a, b) => a.month.localeCompare(b.month)));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // GET category breakdown
-router.get('/breakdown/categories', (req, res) => {
-  const { type = 'expense', months = 12 } = req.query;
-  const startDate = new Date();
-  startDate.setMonth(startDate.getMonth() - months);
-  const startDateStr = startDate.toISOString().split('T')[0];
+router.get('/breakdown/categories', async (req, res) => {
+  try {
+    const { type = 'expense', months = 12 } = req.query;
+    const startDate = new Date();
+    startDate.setMonth(startDate.getMonth() - months);
 
-  const query = `
-    SELECT 
-      COALESCE(category, 'Uncategorized') as category,
-      SUM(amount) as total_amount,
-      COUNT(*) as count,
-      AVG(amount) as avg_amount
-    FROM transactions 
-    WHERE type = ? AND date >= ?
-    GROUP BY category
-    ORDER BY total_amount DESC
-  `;
+    const categories = await Transaction.aggregate([
+      { 
+        $match: { 
+          type: type, 
+          date: { $gte: startDate } 
+        } 
+      },
+      {
+        $group: {
+          _id: { $ifNull: ['$category', 'Uncategorized'] },
+          total_amount: { $sum: '$amount' },
+          count: { $sum: 1 },
+          avg_amount: { $avg: '$amount' }
+        }
+      },
+      {
+        $sort: { total_amount: -1 }
+      },
+      {
+        $project: {
+          category: '$_id',
+          total_amount: 1,
+          count: 1,
+          avg_amount: 1,
+          _id: 0
+        }
+      }
+    ]);
 
-  db.all(query, [type, startDateStr], (err, rows) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
-    res.json(rows);
-  });
+    res.json(categories);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // POST simulate capital growth
@@ -238,33 +260,61 @@ router.post('/simulate/growth', (req, res) => {
 });
 
 // GET investment insights
-router.get('/insights/investments', (req, res) => {
-  const query = `
-    SELECT 
-      p.*,
-      COALESCE(SUM(pr.return_amount), 0) as total_returns,
-      CASE 
-        WHEN p.initial_investment > 0 
-        THEN (COALESCE(SUM(pr.return_amount), 0) / p.initial_investment * 100)
-        ELSE 0 
-      END as actual_return_rate,
-      COUNT(pr.id) as return_count,
-      CASE 
-        WHEN p.expected_return > 0 AND p.initial_investment > 0
-        THEN ((COALESCE(SUM(pr.return_amount), 0) / p.initial_investment * 100) / p.expected_return * 100)
-        ELSE 0
-      END as performance_ratio
-    FROM projects p
-    LEFT JOIN project_returns pr ON p.id = pr.project_id
-    GROUP BY p.id
-    ORDER BY performance_ratio DESC
-  `;
-
-  db.all(query, [], (err, projects) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
+router.get('/insights/investments', async (req, res) => {
+  try {
+    const projects = await Project.aggregate([
+      {
+        $lookup: {
+          from: 'projectreturns',
+          localField: '_id',
+          foreignField: 'project_id',
+          as: 'returns'
+        }
+      },
+      {
+        $addFields: {
+          total_returns: { $sum: '$returns.return_amount' },
+          return_count: { $size: '$returns' },
+          actual_return_rate: {
+            $cond: {
+              if: { $gt: ['$initial_investment', 0] },
+              then: {
+                $multiply: [
+                  { $divide: [{ $sum: '$returns.return_amount' }, '$initial_investment'] },
+                  100
+                ]
+              },
+              else: 0
+            }
+          },
+          performance_ratio: {
+            $cond: {
+              if: { $and: [{ $gt: ['$expected_return', 0] }, { $gt: ['$initial_investment', 0] }] },
+              then: {
+                $multiply: [
+                  {
+                    $divide: [
+                      {
+                        $multiply: [
+                          { $divide: [{ $sum: '$returns.return_amount' }, '$initial_investment'] },
+                          100
+                        ]
+                      },
+                      '$expected_return'
+                    ]
+                  },
+                  100
+                ]
+              },
+              else: 0
+            }
+          }
+        }
+      },
+      {
+        $sort: { performance_ratio: -1 }
+      }
+    ]);
 
     // Calculate insights
     const insights = {
@@ -278,7 +328,9 @@ router.get('/insights/investments', (req, res) => {
     };
 
     res.json(insights);
-  });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 function calculateDiversificationScore(projects) {
@@ -301,69 +353,59 @@ function calculateDiversificationScore(projects) {
 }
 
 // GET settings
-router.get('/settings', (req, res) => {
-  db.all('SELECT * FROM settings', [], (err, rows) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
+router.get('/settings', async (req, res) => {
+  try {
+    const settings = await Setting.find({});
     
-    const settings = {};
-    rows.forEach(row => {
-      settings[row.key] = row.value;
+    const settingsObj = {};
+    settings.forEach(setting => {
+      settingsObj[setting.key] = setting.value;
     });
     
-    res.json(settings);
-  });
+    res.json(settingsObj);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // PUT update settings
-router.put('/settings', (req, res) => {
-  const { inflation_rate, cost_of_living_increase } = req.body;
-  
-  const updates = [];
-  if (inflation_rate !== undefined) {
-    updates.push(['inflation_rate', inflation_rate]);
-  }
-  if (cost_of_living_increase !== undefined) {
-    updates.push(['cost_of_living_increase', cost_of_living_increase]);
-  }
-  
-  if (updates.length === 0) {
-    res.status(400).json({ error: 'No settings to update' });
-    return;
-  }
-  
-  let completed = 0;
-  let hasError = false;
-  
-  updates.forEach(([key, value]) => {
-    db.run('UPDATE settings SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE key = ?', [value, key], (err) => {
-      if (err && !hasError) {
-        hasError = true;
-        res.status(500).json({ error: err.message });
-        return;
-      }
-      
-      completed++;
-      if (completed === updates.length && !hasError) {
-        // Return updated settings
-        db.all('SELECT * FROM settings', [], (err, rows) => {
-          if (err) {
-            res.status(500).json({ error: err.message });
-            return;
-          }
-          
-          const settings = {};
-          rows.forEach(row => {
-            settings[row.key] = row.value;
-          });
-          
-          res.json(settings);
-        });
-      }
+router.put('/settings', async (req, res) => {
+  try {
+    const { inflation_rate, cost_of_living_increase } = req.body;
+    
+    const updates = [];
+    if (inflation_rate !== undefined) {
+      updates.push(['inflation_rate', inflation_rate]);
+    }
+    if (cost_of_living_increase !== undefined) {
+      updates.push(['cost_of_living_increase', cost_of_living_increase]);
+    }
+    
+    if (updates.length === 0) {
+      res.status(400).json({ error: 'No settings to update' });
+      return;
+    }
+    
+    // Update each setting
+    for (const [key, value] of updates) {
+      await Setting.findOneAndUpdate(
+        { key },
+        { key, value },
+        { upsert: true, new: true }
+      );
+    }
+    
+    // Return updated settings
+    const settings = await Setting.find({});
+    const settingsObj = {};
+    settings.forEach(setting => {
+      settingsObj[setting.key] = setting.value;
     });
-  });
+    
+    res.json(settingsObj);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;
