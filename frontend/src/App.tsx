@@ -1,7 +1,9 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+
 import { AuthProvider } from './contexts/AuthContext';
 import PrivateRoute from './components/auth/PrivateRoute';
+
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Transactions from './pages/Transactions';
@@ -16,6 +18,7 @@ import './App.css';
 
 function App() {
   return (
+
     <AuthProvider>
       <Router>
         <div className="App min-h-screen bg-gray-50">
@@ -44,6 +47,7 @@ function App() {
         </div>
       </Router>
     </AuthProvider>
+
   );
 }
 

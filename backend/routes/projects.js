@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+
 const { Project, ProjectReturn } = require('../models/database');
 const { authenticateToken } = require('../middleware/auth');
 const mongoose = require('mongoose');
@@ -34,14 +35,17 @@ router.get('/:id', authenticateToken, async (req, res) => {
     const userId = req.user.id;
     
     const project = await Project.findOne({ _id: id, user_id: userId }).lean();
+
     
     if (!project) {
       return res.status(404).json({ error: 'Project not found' });
     }
 
     // Get project returns
+
     const returns = await ProjectReturn.find({ project_id: id })
       .sort({ return_date: -1 });
+
     
     project.returns = returns;
     project.total_returns = returns.reduce((sum, ret) => sum + ret.return_amount, 0);
@@ -50,6 +54,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
       : 0;
     
     res.json(project);
+
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -188,9 +193,11 @@ router.post('/:id/returns', authenticateToken, async (req, res) => {
 
     // Check if project exists and belongs to user
     const project = await Project.findOne({ _id: id, user_id: userId });
+
     if (!project) {
       return res.status(404).json({ error: 'Project not found' });
     }
+
 
     const returnData = {
       project_id: id,
@@ -213,6 +220,7 @@ router.get('/rankings/best', authenticateToken, async (req, res) => {
     
     const projects = await Project.aggregate([
       { $match: { user_id: new mongoose.Types.ObjectId(userId), status: 'active' } },
+
       {
         $lookup: {
           from: 'projectreturns',
@@ -228,7 +236,9 @@ router.get('/rankings/best', authenticateToken, async (req, res) => {
           actual_return_rate: {
             $cond: {
               if: { $gt: ['$initial_investment', 0] },
+
               then: { 
+
                 $multiply: [
                   { $divide: [{ $sum: '$returns.return_amount' }, '$initial_investment'] },
                   100
@@ -239,12 +249,14 @@ router.get('/rankings/best', authenticateToken, async (req, res) => {
           }
         }
       },
+
       { $sort: { actual_return_rate: -1, expected_return: -1 } }
     ]);
 
     res.json(projects);
   } catch (error) {
     res.status(500).json({ error: error.message });
+
   }
 });
 

@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+
 const { Transaction } = require('../models/database');
 const { authenticateToken } = require('../middleware/auth');
 
@@ -185,6 +186,7 @@ router.get('/summary/totals', authenticateToken, async (req, res) => {
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: error.message });
+
   }
 });
 

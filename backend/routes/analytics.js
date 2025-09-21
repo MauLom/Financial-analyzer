@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+
 const { Transaction, Project, ProjectReturn, Settings } = require('../models/database');
 const { authenticateToken } = require('../middleware/auth');
 const mongoose = require('mongoose');
@@ -9,10 +10,12 @@ router.get('/overview', authenticateToken, async (req, res) => {
   try {
     const { months = 12 } = req.query;
     const userId = req.user.id;
+
     const startDate = new Date();
     startDate.setMonth(startDate.getMonth() - months);
 
     // Get transaction summary
+
     const transactionSummary = await Transaction.aggregate([
       { 
         $match: { 
@@ -20,6 +23,7 @@ router.get('/overview', authenticateToken, async (req, res) => {
           date: { $gte: startDate }
         }
       },
+
       {
         $group: {
           _id: '$type',
@@ -30,8 +34,10 @@ router.get('/overview', authenticateToken, async (req, res) => {
     ]);
 
     // Get project summary
+
     const projectSummary = await Project.aggregate([
       { $match: { user_id: new mongoose.Types.ObjectId(userId) } },
+
       {
         $group: {
           _id: null,
@@ -47,6 +53,7 @@ router.get('/overview', authenticateToken, async (req, res) => {
         }
       }
     ]);
+
 
     // Get total returns from project returns
     const totalReturns = await ProjectReturn.aggregate([
@@ -189,6 +196,7 @@ router.get('/trends/monthly', authenticateToken, async (req, res) => {
       { $sort: { '_id.year': 1, '_id.month': 1 } }
     ]);
 
+
     res.json(trends);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -307,6 +315,7 @@ router.post('/simulate/growth', (req, res) => {
   }
 });
 
+
 // GET investment insights (user-specific)
 router.get('/insights/investments', authenticateToken, async (req, res) => {
   try {
@@ -315,6 +324,7 @@ router.get('/insights/investments', authenticateToken, async (req, res) => {
     // Get all projects with their returns
     const projects = await Project.aggregate([
       { $match: { user_id: new mongoose.Types.ObjectId(userId) } },
+
       {
         $lookup: {
           from: 'projectreturns',
@@ -326,10 +336,12 @@ router.get('/insights/investments', authenticateToken, async (req, res) => {
       {
         $addFields: {
           total_returns: { $sum: '$returns.return_amount' },
+
           actual_return_rate: {
             $cond: {
               if: { $gt: ['$initial_investment', 0] },
               then: { 
+
                 $multiply: [
                   { $divide: [{ $sum: '$returns.return_amount' }, '$initial_investment'] },
                   100
@@ -337,6 +349,7 @@ router.get('/insights/investments', authenticateToken, async (req, res) => {
               },
               else: 0
             }
+
           }
         }
       }
@@ -353,14 +366,17 @@ router.get('/insights/investments', authenticateToken, async (req, res) => {
       });
     }
 
+
     // Sort projects by performance
     const sortedProjects = projects.sort((a, b) => b.actual_return_rate - a.actual_return_rate);
+
 
     // Get best performing (top 3 or all if less than 3)
     const best_performing = sortedProjects.slice(0, Math.min(3, projects.length));
 
     // Get underperforming (actual return < expected return)
     const underperforming = projects.filter(p => p.actual_return_rate < p.expected_return);
+
 
     // Get high risk, high return projects
     const high_risk_high_return = projects.filter(p => 
@@ -403,7 +419,9 @@ router.get('/insights/investments', authenticateToken, async (req, res) => {
 // GET settings
 router.get('/settings', async (req, res) => {
   try {
+
     const settings = await Settings.find({});
+
     
     const settingsObj = {};
     settings.forEach(setting => {
@@ -411,8 +429,10 @@ router.get('/settings', async (req, res) => {
     });
     
     res.json(settingsObj);
+
   } catch (error) {
     res.status(500).json({ error: error.message });
+
   }
 });
 
@@ -430,6 +450,7 @@ router.put('/settings', async (req, res) => {
     }
     
     if (updates.length === 0) {
+
       return res.status(400).json({ error: 'No settings to update' });
     }
     
@@ -446,12 +467,15 @@ router.put('/settings', async (req, res) => {
     const allSettings = await Settings.find({});
     const settingsObj = {};
     allSettings.forEach(setting => {
+
       settingsObj[setting.key] = setting.value;
     });
     
     res.json(settingsObj);
+
   } catch (error) {
     res.status(500).json({ error: error.message });
+
   }
 });
 

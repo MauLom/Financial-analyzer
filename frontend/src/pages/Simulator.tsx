@@ -14,6 +14,7 @@ import {
 import { analyticsApi } from '../services/api';
 import { GrowthSimulation } from '../types';
 import { formatCurrency, formatPercentage } from '../utils/format';
+import { useLanguage } from '../contexts/LanguageContext';
 
 ChartJS.register(
   CategoryScale,
@@ -29,6 +30,7 @@ const Simulator: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [simulation, setSimulation] = useState<GrowthSimulation | null>(null);
+  const { t } = useLanguage();
   
   const [formData, setFormData] = useState({
     initial_amount: '10000',
@@ -102,7 +104,7 @@ const Simulator: React.FC = () => {
       },
       title: {
         display: true,
-        text: 'Investment Growth Simulation',
+        text: t('simulator.title'),
       },
       tooltip: {
         callbacks: {
@@ -130,10 +132,10 @@ const Simulator: React.FC = () => {
         <div className="flex-1 min-w-0">
           <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">
             <Calculator className="inline h-8 w-8 mr-2" />
-            Investment Growth Simulator
+            {t('simulator.title')}
           </h2>
           <p className="mt-1 text-sm text-gray-500">
-            Simulate how your investments could grow over time with regular contributions
+            {t('simulator.description')}
           </p>
         </div>
       </div>
@@ -151,7 +153,7 @@ const Simulator: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">
-                Initial Investment Amount
+                {t('simulator.initialAmount')}
               </label>
               <div className="mt-1 relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -170,7 +172,7 @@ const Simulator: React.FC = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700">
-                Monthly Investment
+                {t('simulator.monthlyInvestment')}
               </label>
               <div className="mt-1 relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -189,7 +191,7 @@ const Simulator: React.FC = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700">
-                Annual Return Rate (%)
+                {t('simulator.annualReturnRate')}
               </label>
               <input
                 type="number"
@@ -203,7 +205,7 @@ const Simulator: React.FC = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700">
-                Time Period (Years)
+                {t('simulator.years')}
               </label>
               <input
                 type="number"
@@ -218,7 +220,7 @@ const Simulator: React.FC = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700">
-                Inflation Rate (%)
+                {t('simulator.inflationRate')}
               </label>
               <input
                 type="number"
@@ -240,7 +242,7 @@ const Simulator: React.FC = () => {
               ) : (
                 <TrendingUp className="h-4 w-4 mr-2" />
               )}
-              {loading ? 'Running...' : 'Run Simulation'}
+              {loading ? 'Running...' : t('simulator.runSimulation')}
             </button>
           </form>
         </div>
@@ -254,7 +256,7 @@ const Simulator: React.FC = () => {
                 <div className="bg-white overflow-hidden shadow rounded-lg">
                   <div className="px-4 py-5 sm:p-6">
                     <dt className="text-sm font-medium text-gray-500 truncate">
-                      Final Value
+                      {t('simulator.finalAmount')}
                     </dt>
                     <dd className="mt-1 text-2xl font-semibold text-gray-900">
                       {formatCurrency(simulation.summary.final_nominal_value)}
@@ -268,7 +270,7 @@ const Simulator: React.FC = () => {
                 <div className="bg-white overflow-hidden shadow rounded-lg">
                   <div className="px-4 py-5 sm:p-6">
                     <dt className="text-sm font-medium text-gray-500 truncate">
-                      Total Gains
+                      {t('simulator.totalGains')}
                     </dt>
                     <dd className="mt-1 text-2xl font-semibold text-green-600">
                       {formatCurrency(simulation.summary.total_gains)}
@@ -282,7 +284,7 @@ const Simulator: React.FC = () => {
                 <div className="bg-white overflow-hidden shadow rounded-lg">
                   <div className="px-4 py-5 sm:p-6">
                     <dt className="text-sm font-medium text-gray-500 truncate">
-                      Total Invested
+                      {t('simulator.totalContributions')}
                     </dt>
                     <dd className="mt-1 text-2xl font-semibold text-blue-600">
                       {formatCurrency(simulation.summary.total_invested)}
@@ -306,11 +308,11 @@ const Simulator: React.FC = () => {
                 <h3 className="text-lg font-medium text-gray-900 mb-4">Simulation Parameters</h3>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <span className="font-medium text-gray-700">Initial Amount:</span>
+                    <span className="font-medium text-gray-700">{t('simulator.initialAmount')}:</span>
                     <span className="ml-2">{formatCurrency(simulation.parameters.initial_amount)}</span>
                   </div>
                   <div>
-                    <span className="font-medium text-gray-700">Monthly Investment:</span>
+                    <span className="font-medium text-gray-700">{t('simulator.monthlyInvestment')}:</span>
                     <span className="ml-2">{formatCurrency(simulation.parameters.monthly_investment)}</span>
                   </div>
                   <div>
@@ -322,7 +324,7 @@ const Simulator: React.FC = () => {
                     <span className="ml-2">{simulation.parameters.years} years</span>
                   </div>
                   <div>
-                    <span className="font-medium text-gray-700">Inflation Rate:</span>
+                    <span className="font-medium text-gray-700">{t('simulator.inflationRate')}:</span>
                     <span className="ml-2">{formatPercentage(simulation.parameters.inflation_rate)}</span>
                   </div>
                 </div>
@@ -332,9 +334,9 @@ const Simulator: React.FC = () => {
             <div className="bg-white shadow rounded-lg p-6">
               <div className="text-center py-12">
                 <Calculator className="mx-auto h-12 w-12 text-gray-400" />
-                <h3 className="mt-2 text-sm font-medium text-gray-900">No simulation yet</h3>
+                <h3 className="mt-2 text-sm font-medium text-gray-900">{t('simulator.noSimulation')}</h3>
                 <p className="mt-1 text-sm text-gray-500">
-                  Enter your investment parameters and run a simulation to see potential growth.
+                  {t('simulator.noSimulationDesc')}
                 </p>
               </div>
             </div>
