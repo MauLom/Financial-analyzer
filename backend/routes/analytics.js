@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../models/database');
+const { Transaction, Project, ProjectReturn } = require('../models/database-mongo');
 
 // GET financial overview
 router.get('/overview', (req, res) => {
