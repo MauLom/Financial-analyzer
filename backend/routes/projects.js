@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
-const { Project, ProjectReturn } = require('../models/database');
+const { Project, ProjectReturn } = require('../models/database-mongo');
 const { authenticateToken } = require('../middleware/auth');
 const mongoose = require('mongoose');
 

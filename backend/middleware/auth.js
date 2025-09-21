@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { User } = require('../models/database');
+const { User } = require('../models/database-mongo');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
 
