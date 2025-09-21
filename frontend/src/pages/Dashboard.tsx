@@ -11,11 +11,13 @@ import {
 import { analyticsApi } from '../services/api';
 import { FinancialOverview } from '../types';
 import { formatCurrency, formatPercentage } from '../utils/format';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const Dashboard: React.FC = () => {
   const [overview, setOverview] = useState<FinancialOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { t } = useLanguage();
 
   useEffect(() => {
     const fetchOverview = async () => {
@@ -47,7 +49,7 @@ const Dashboard: React.FC = () => {
       <div className="bg-red-50 border border-red-200 rounded-md p-4">
         <div className="flex">
           <div className="ml-3">
-            <h3 className="text-sm font-medium text-red-800">Error</h3>
+            <h3 className="text-sm font-medium text-red-800">{t('common.error')}</h3>
             <div className="mt-2 text-sm text-red-700">
               <p>{error}</p>
             </div>
@@ -63,7 +65,7 @@ const Dashboard: React.FC = () => {
 
   const stats = [
     {
-      name: 'Total Income',
+      name: t('dashboard.totalIncome'),
       value: formatCurrency(summary.income),
       icon: TrendingUp,
       change: '+12.5%',
@@ -71,7 +73,7 @@ const Dashboard: React.FC = () => {
       color: 'text-green-600 bg-green-50',
     },
     {
-      name: 'Total Expenses',
+      name: t('dashboard.totalExpenses'),
       value: formatCurrency(summary.expenses),
       icon: TrendingDown,
       change: '+8.2%',
@@ -79,7 +81,7 @@ const Dashboard: React.FC = () => {
       color: 'text-red-600 bg-red-50',
     },
     {
-      name: 'Net Worth',
+      name: t('dashboard.netWorth'),
       value: formatCurrency(summary.net),
       icon: DollarSign,
       change: summary.net > 0 ? '+4.3%' : '-2.1%',
@@ -87,7 +89,7 @@ const Dashboard: React.FC = () => {
       color: summary.net > 0 ? 'text-green-600 bg-green-50' : 'text-red-600 bg-red-50',
     },
     {
-      name: 'Investments',
+      name: t('dashboard.totalInvestments'),
       value: formatCurrency(summary.investments),
       icon: PieChart,
       change: '+15.8%',
@@ -101,10 +103,10 @@ const Dashboard: React.FC = () => {
       <div className="md:flex md:items-center md:justify-between">
         <div className="flex-1 min-w-0">
           <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">
-            Dashboard
+            {t('dashboard.title')}
           </h2>
           <p className="mt-1 text-sm text-gray-500">
-            Financial overview for the last {overview.period_months} months
+            {t('dashboard.overview').replace('{{months}}', overview.period_months.toString())}
           </p>
         </div>
       </div>
@@ -155,14 +157,14 @@ const Dashboard: React.FC = () => {
       {/* Project Summary */}
       <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="bg-white shadow rounded-lg p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Investment Overview</h3>
+          <h3 className="text-lg font-medium text-gray-900 mb-4">{t('dashboard.projectsOverview')}</h3>
           <div className="space-y-4">
             <div className="flex justify-between">
-              <span className="text-sm text-gray-500">Active Projects</span>
+              <span className="text-sm text-gray-500">{t('dashboard.activeProjects')}</span>
               <span className="font-medium">{projects.active_projects}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-sm text-gray-500">Total Invested</span>
+              <span className="text-sm text-gray-500">{t('dashboard.totalInvested')}</span>
               <span className="font-medium">{formatCurrency(projects.total_invested)}</span>
             </div>
             <div className="flex justify-between">
@@ -172,7 +174,7 @@ const Dashboard: React.FC = () => {
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-sm text-gray-500">Avg Expected Return</span>
+              <span className="text-sm text-gray-500">{t('dashboard.avgExpectedReturn')}</span>
               <span className="font-medium">
                 {formatPercentage(projects.avg_expected_return)}
               </span>
@@ -183,41 +185,41 @@ const Dashboard: React.FC = () => {
               to="/projects"
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
             >
-              View Projects
+              {t('dashboard.viewProjects')}
             </Link>
           </div>
         </div>
 
         <div className="bg-white shadow rounded-lg p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Quick Actions</h3>
+          <h3 className="text-lg font-medium text-gray-900 mb-4">{t('dashboard.quickActions')}</h3>
           <div className="space-y-3">
             <Link
               to="/transactions"
               className="block w-full px-4 py-3 text-left border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
             >
-              <div className="text-sm font-medium text-gray-900">Add Transaction</div>
-              <div className="text-xs text-gray-500">Record income, expense, or investment</div>
+              <div className="text-sm font-medium text-gray-900">{t('dashboard.addTransaction')}</div>
+              <div className="text-xs text-gray-500">{t('dashboard.addTransactionDesc')}</div>
             </Link>
             <Link
               to="/projects"
               className="block w-full px-4 py-3 text-left border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
             >
-              <div className="text-sm font-medium text-gray-900">Create Project</div>
-              <div className="text-xs text-gray-500">Start tracking a new investment</div>
+              <div className="text-sm font-medium text-gray-900">{t('dashboard.createProject')}</div>
+              <div className="text-xs text-gray-500">{t('dashboard.createProjectDesc')}</div>
             </Link>
             <Link
               to="/simulator"
               className="block w-full px-4 py-3 text-left border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
             >
-              <div className="text-sm font-medium text-gray-900">Growth Simulator</div>
-              <div className="text-xs text-gray-500">Simulate investment growth</div>
+              <div className="text-sm font-medium text-gray-900">{t('dashboard.growthSimulator')}</div>
+              <div className="text-xs text-gray-500">{t('dashboard.growthSimulatorDesc')}</div>
             </Link>
             <Link
               to="/analytics"
               className="block w-full px-4 py-3 text-left border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
             >
-              <div className="text-sm font-medium text-gray-900">View Analytics</div>
-              <div className="text-xs text-gray-500">Detailed financial insights</div>
+              <div className="text-sm font-medium text-gray-900">{t('dashboard.viewAnalytics')}</div>
+              <div className="text-xs text-gray-500">{t('dashboard.viewAnalyticsDesc')}</div>
             </Link>
           </div>
         </div>

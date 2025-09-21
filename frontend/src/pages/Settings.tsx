@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Save, Settings as SettingsIcon } from 'lucide-react';
 import { analyticsApi } from '../services/api';
 import { Settings as SettingsType } from '../types';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const Settings: React.FC = () => {
   const [settings, setSettings] = useState<SettingsType | null>(null);
@@ -9,6 +10,7 @@ const Settings: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const { t } = useLanguage();
 
   const [formData, setFormData] = useState({
     inflation_rate: '',
@@ -84,10 +86,10 @@ const Settings: React.FC = () => {
         <div className="flex-1 min-w-0">
           <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">
             <SettingsIcon className="inline h-8 w-8 mr-2" />
-            Settings
+            {t('settings.title')}
           </h2>
           <p className="mt-1 text-sm text-gray-500">
-            Configure your financial analysis parameters
+            {t('settings.subtitle')}
           </p>
         </div>
       </div>
@@ -113,7 +115,7 @@ const Settings: React.FC = () => {
               <div className="space-y-6">
                 <div>
                   <label htmlFor="inflation_rate" className="block text-sm font-medium text-gray-700">
-                    Annual Inflation Rate (%)
+                    {t('settings.inflationRate')} (%)
                   </label>
                   <div className="mt-1">
                     <input
@@ -133,7 +135,7 @@ const Settings: React.FC = () => {
 
                 <div>
                   <label htmlFor="cost_of_living_increase" className="block text-sm font-medium text-gray-700">
-                    Annual Cost of Living Increase (%)
+                    {t('settings.costOfLivingIncrease')} (%)
                   </label>
                   <div className="mt-1">
                     <input
@@ -147,7 +149,7 @@ const Settings: React.FC = () => {
                     />
                   </div>
                   <p className="mt-2 text-sm text-gray-500">
-                    Expected annual increase in living expenses, used for long-term financial planning.
+                    {t('settings.costOfLivingDesc')}
                   </p>
                 </div>
 
@@ -157,7 +159,7 @@ const Settings: React.FC = () => {
                     onClick={resetToDefaults}
                     className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
                   >
-                    Reset to Defaults
+                    {t('settings.resetToDefaults')}
                   </button>
                   
                   <button
@@ -170,7 +172,7 @@ const Settings: React.FC = () => {
                     ) : (
                       <Save className="h-4 w-4 mr-2" />
                     )}
-                    {saving ? 'Saving...' : 'Save Settings'}
+                    {saving ? t('settings.saving') : t('settings.saveSettings')}
                   </button>
                 </div>
               </div>
@@ -181,20 +183,18 @@ const Settings: React.FC = () => {
         {/* Information Panel */}
         <div className="bg-white shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">About These Settings</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">{t('settings.aboutSettings')}</h3>
             
             <div className="space-y-4">
               <div>
-                <h4 className="text-sm font-medium text-gray-900">Inflation Rate</h4>
+                <h4 className="text-sm font-medium text-gray-900">{t('settings.inflationRate')}</h4>
                 <p className="mt-1 text-sm text-gray-600">
-                  The inflation rate is used to calculate the real purchasing power of your investments 
-                  over time. The default value of 3.5% represents the long-term average inflation rate 
-                  in many developed economies.
+                  {t('settings.inflationRateDesc')}
                 </p>
               </div>
 
               <div>
-                <h4 className="text-sm font-medium text-gray-900">Cost of Living Increase</h4>
+                <h4 className="text-sm font-medium text-gray-900">{t('settings.costOfLivingIncrease')}</h4>
                 <p className="mt-1 text-sm text-gray-600">
                   This parameter helps estimate how your expenses might grow over time. It can be 
                   different from general inflation as it reflects changes in your personal cost of 
@@ -246,11 +246,11 @@ const Settings: React.FC = () => {
             <h3 className="text-lg font-medium text-gray-900 mb-4">Current Settings</h3>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="bg-gray-50 rounded-lg p-4">
-                <div className="text-sm font-medium text-gray-500">Inflation Rate</div>
+                <div className="text-sm font-medium text-gray-500">{t('settings.inflationRate')}</div>
                 <div className="mt-1 text-2xl font-semibold text-gray-900">{settings.inflation_rate}%</div>
               </div>
               <div className="bg-gray-50 rounded-lg p-4">
-                <div className="text-sm font-medium text-gray-500">Cost of Living Increase</div>
+                <div className="text-sm font-medium text-gray-500">{t('settings.costOfLivingIncrease')}</div>
                 <div className="mt-1 text-2xl font-semibold text-gray-900">{settings.cost_of_living_increase}%</div>
               </div>
             </div>

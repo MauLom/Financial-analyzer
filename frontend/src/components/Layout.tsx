@@ -10,6 +10,8 @@ import {
   X,
   Home,
 } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
+import LanguageSelector from './LanguageSelector';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -18,14 +20,15 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
+  const { t } = useLanguage();
 
   const navigation = [
-    { name: 'Dashboard', href: '/', icon: Home },
-    { name: 'Transactions', href: '/transactions', icon: DollarSign },
-    { name: 'Projects', href: '/projects', icon: TrendingUp },
-    { name: 'Analytics', href: '/analytics', icon: BarChart3 },
-    { name: 'Simulator', href: '/simulator', icon: Calculator },
-    { name: 'Settings', href: '/settings', icon: SettingsIcon },
+    { name: t('nav.dashboard'), href: '/', icon: Home, key: 'nav.dashboard' },
+    { name: t('nav.transactions'), href: '/transactions', icon: DollarSign, key: 'nav.transactions' },
+    { name: t('nav.projects'), href: '/projects', icon: TrendingUp, key: 'nav.projects' },
+    { name: t('nav.analytics'), href: '/analytics', icon: BarChart3, key: 'nav.analytics' },
+    { name: t('nav.simulator'), href: '/simulator', icon: Calculator, key: 'nav.simulator' },
+    { name: t('nav.settings'), href: '/settings', icon: SettingsIcon, key: 'nav.settings' },
   ];
 
   const isCurrentPath = (path: string) => location.pathname === path;
@@ -55,15 +58,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </button>
           </div>
           <div className="flex-1 h-0 pt-5 pb-4 overflow-y-auto">
-            <div className="flex-shrink-0 flex items-center px-4">
+            <div className="flex-shrink-0 flex items-center justify-between px-4">
               <h1 className="text-xl font-bold text-gray-900">Financial Analyzer</h1>
+            </div>
+            <div className="px-4 mt-2">
+              <LanguageSelector />
             </div>
             <nav className="mt-5 px-2 space-y-1">
               {navigation.map((item) => {
                 const Icon = item.icon;
                 return (
                   <Link
-                    key={item.name}
+                    key={item.key}
                     to={item.href}
                     className={`group flex items-center px-2 py-2 text-base font-medium rounded-md ${
                       isCurrentPath(item.href)
@@ -87,15 +93,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <div className="flex flex-col w-64">
           <div className="flex-1 flex flex-col min-h-0 border-r border-gray-200 bg-white">
             <div className="flex-1 flex flex-col pt-5 pb-4 overflow-y-auto">
-              <div className="flex items-center flex-shrink-0 px-4">
+              <div className="flex items-center justify-between flex-shrink-0 px-4">
                 <h1 className="text-xl font-bold text-gray-900">Financial Analyzer</h1>
+              </div>
+              <div className="px-4 mt-2 mb-4">
+                <LanguageSelector />
               </div>
               <nav className="mt-5 flex-1 px-2 bg-white space-y-1">
                 {navigation.map((item) => {
                   const Icon = item.icon;
                   return (
                     <Link
-                      key={item.name}
+                      key={item.key}
                       to={item.href}
                       className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${
                         isCurrentPath(item.href)
