@@ -4,6 +4,7 @@ const router = express.Router();
 const { Transaction, Project, ProjectReturn, Setting } = require('../models/database-mongo');
 const { authenticateToken } = require('../middleware/auth');
 const mongoose = require('mongoose');
+const alphaVantageService = require('../services/alphaVantageService');
 
 // GET financial overview (user-specific)
 router.get('/overview', authenticateToken, async (req, res) => {
@@ -627,6 +628,125 @@ router.put('/settings', async (req, res) => {
     res.json(settingsObj);
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// GET demo market data for testing
+router.get('/market/demo', async (req, res) => {
+  // Static demo data for testing the UI
+  const demoData = {
+    indices: [
+      {
+        symbol: 'SPY',
+        price: 432.50,
+        change: 2.35,
+        changePercent: '0.55',
+        volume: 45234567,
+        previousClose: 430.15,
+        lastUpdated: new Date().toISOString().split('T')[0]
+      },
+      {
+        symbol: 'QQQ',
+        price: 378.90,
+        change: -1.25,
+        changePercent: '-0.33',
+        volume: 23456789,
+        previousClose: 380.15,
+        lastUpdated: new Date().toISOString().split('T')[0]
+      },
+      {
+        symbol: 'IWM',
+        price: 218.75,
+        change: 0.85,
+        changePercent: '0.39',
+        volume: 12345678,
+        previousClose: 217.90,
+        lastUpdated: new Date().toISOString().split('T')[0]
+      }
+    ],
+    economicIndicators: [
+      {
+        name: 'Inflation Rate',
+        value: 3.2,
+        date: '2024-01-01'
+      },
+      {
+        name: 'Federal Funds Rate',
+        value: 5.25,
+        date: '2024-01-01'
+      },
+      {
+        name: 'Unemployment Rate',
+        value: 3.7,
+        date: '2024-01-01'
+      }
+    ],
+    sectorPerformance: [
+      {
+        sector: 'Technology',
+        performance: 1.25
+      },
+      {
+        sector: 'Healthcare',
+        performance: 0.85
+      },
+      {
+        sector: 'Financials',
+        performance: -0.45
+      },
+      {
+        sector: 'Energy',
+        performance: 2.10
+      },
+      {
+        sector: 'Consumer Discretionary',
+        performance: -0.12
+      }
+    ]
+  };
+
+  res.json(demoData);
+});
+
+// GET market signals - market indices (public for testing)
+router.get('/market/indices', async (req, res) => {
+  try {
+    const indices = await alphaVantageService.getMarketIndices();
+    res.json(indices);
+  } catch (error) {
+    console.error('Market indices error:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch market indices',
+      message: error.message
+    });
+  }
+});
+
+// GET economic indicators (public for testing)
+router.get('/market/economic-indicators', async (req, res) => {
+  try {
+    const indicators = await alphaVantageService.getEconomicIndicators();
+    res.json(indicators);
+  } catch (error) {
+    console.error('Economic indicators error:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch economic indicators',
+      message: error.message
+    });
+  }
+});
+
+// GET sector performance (public for testing)
+router.get('/market/sectors', async (req, res) => {
+  try {
+    const sectors = await alphaVantageService.getSectorPerformance();
+    res.json(sectors);
+  } catch (error) {
+    console.error('Sector performance error:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch sector performance',
+      message: error.message
+    });
   }
 });
 

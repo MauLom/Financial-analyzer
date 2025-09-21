@@ -131,3 +131,25 @@ export interface Settings {
   cost_of_living_increase: string;
   categories: string[];
 }
+
+// Market signals types
+export interface MarketIndex {
+  symbol: string;
+  price: number;
+  change: number;
+  changePercent: string;
+  volume: number;
+  previousClose: number;
+  lastUpdated: string;
+}
+
+export interface EconomicIndicator {
+  name: string;
+  value: number;
+  date: string;
+}
+
+export interface SectorPerformance {
+  sector: string;
+  performance: number;
+}

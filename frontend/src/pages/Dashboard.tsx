@@ -12,6 +12,7 @@ import { analyticsApi } from '../services/api';
 import { FinancialOverview } from '../types';
 import { formatCurrency, formatPercentage } from '../utils/format';
 import { useLanguage } from '../contexts/LanguageContext';
+import MarketSignals from '../components/MarketSignals';
 
 const Dashboard: React.FC = () => {
   const [overview, setOverview] = useState<FinancialOverview | null>(null);
@@ -342,6 +343,11 @@ const Dashboard: React.FC = () => {
             </Link>
           </div>
         </div>
+      </div>
+
+      {/* Market Signals Section */}
+      <div className="mt-8">
+        <MarketSignals />
       </div>
     </div>
   );
