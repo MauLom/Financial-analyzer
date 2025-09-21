@@ -10,6 +10,8 @@
     "install-frontend": "cd frontend && npm install",
     "dev-frontend": "cd frontend && npm start",
     "generate-dummy-data": "node generate-dummy-data.js",
+    "validate-migration": "node validate-migration.js",
+    "test-api": "node test-api.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -31,6 +33,8 @@
     "sqlite3": "^5.1.7"
   },
   "devDependencies": {
+    "axios": "^1.12.2",
+    "mongodb-memory-server": "^10.2.1",
     "nodemon": "^3.1.10"
   }
 }
