@@ -4,7 +4,7 @@ const path = require('path');
 const passport = require('passport');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
-const { initializeDatabase } = require('./models/database-mongo');
+const { initializeDatabase } = require('./models/database-fallback');
 const transactionRoutes = require('./routes/transactions');
 const projectRoutes = require('./routes/projects');
 const analyticsRoutes = require('./routes/analytics');

@@ -11,10 +11,11 @@ const connectDB = async () => {
     console.log('Connected to MongoDB database');
   } catch (err) {
     console.error('Error connecting to MongoDB:', err.message);
-    if (process.env.NODE_ENV !== 'development') {
+    if (process.env.NODE_ENV === 'production') {
       process.exit(1);
     } else {
-      console.log('Continuing in development mode without MongoDB...');
+      // In development/test, throw the error so fallback can catch it
+      throw err;
     }
   }
 };

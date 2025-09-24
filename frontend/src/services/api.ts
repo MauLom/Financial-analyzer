@@ -91,6 +91,32 @@ export const transactionApi = {
   create: (transaction: Omit<Transaction, 'id' | 'created_at'>): Promise<Transaction> =>
     api.post('/transactions', transaction).then(res => res.data),
 
+  createBulk: (transactions: Omit<Transaction, 'id' | 'created_at'>[]): Promise<{
+    message: string;
+    count: number;
+    transactions: Transaction[];
+  }> =>
+    api.post('/transactions/bulk', { transactions }).then(res => res.data),
+
+  uploadCSV: (file: File): Promise<{
+    message: string;
+    count: number;
+    transactions: Transaction[];
+  }> => {
+    const formData = new FormData();
+    formData.append('csvFile', file);
+    return api.post('/transactions/upload-csv', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }).then(res => res.data);
+  },
+
+  downloadTemplate: (): Promise<Blob> =>
+    api.get('/transactions/template', {
+      responseType: 'blob',
+    }).then(res => res.data),
+
   update: (id: number, transaction: Omit<Transaction, 'id' | 'created_at'>): Promise<Transaction> =>
     api.put(`/transactions/${id}`, transaction).then(res => res.data),
 

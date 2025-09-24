@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Filter } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Plus, Edit, Trash2, Filter, Upload, Download, FileText } from 'lucide-react';
 import { transactionApi, analyticsApi } from '../services/api';
 import { Transaction } from '../types';
 import { formatCurrency, formatDate, getTransactionTypeColor } from '../utils/format';
@@ -9,7 +9,14 @@ const Transactions: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [showBulkImport, setShowBulkImport] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<{
+    uploading: boolean;
+    message: string;
+    errors?: any[];
+  }>({ uploading: false, message: '' });
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [filter, setFilter] = useState<{
     type: string;
     category: string;
@@ -120,6 +127,83 @@ const Transactions: React.FC = () => {
     });
   };
 
+  const handleDownloadTemplate = async () => {
+    try {
+      const blob = await transactionApi.downloadTemplate();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'transaction_template.csv';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError('Failed to download template');
+      console.error(err);
+    }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.csv')) {
+      setError('Please select a CSV file');
+      return;
+    }
+
+    setUploadProgress({ uploading: true, message: 'Uploading and processing CSV...' });
+    setError(null);
+
+    try {
+      const result = await transactionApi.uploadCSV(file);
+      setUploadProgress({
+        uploading: false,
+        message: `Success: ${result.message}`,
+      });
+      
+      // Refresh transactions list
+      const filterParams = Object.fromEntries(
+        Object.entries(filter).filter(([_, value]) => value !== '')
+      );
+      const transactionsData = await transactionApi.getAll(filterParams);
+      setTransactions(transactionsData);
+      
+      // Clear file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      
+      // Auto-hide success message after 5 seconds
+      setTimeout(() => {
+        setUploadProgress({ uploading: false, message: '' });
+      }, 5000);
+      
+    } catch (err: any) {
+      console.error('Upload error:', err);
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Failed to upload CSV';
+      const errors = err.response?.data?.errors || [];
+      
+      setUploadProgress({
+        uploading: false,
+        message: `Error: ${errorMessage}`,
+        errors: errors.length > 0 ? errors : undefined
+      });
+      
+      // Clear file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const toggleBulkImport = () => {
+    setShowBulkImport(!showBulkImport);
+    setUploadProgress({ uploading: false, message: '' });
+    setError(null);
+  };
+
   if (loading && transactions.length === 0 && categories.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -139,13 +223,20 @@ const Transactions: React.FC = () => {
             Track your income, expenses, and investments
           </p>
         </div>
-        <div className="mt-4 md:mt-0">
+        <div className="mt-4 md:mt-0 space-x-2">
           <button
             onClick={() => setShowForm(true)}
             className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Transaction
+          </button>
+          <button
+            onClick={toggleBulkImport}
+            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            Bulk Import
           </button>
         </div>
       </div>
@@ -208,6 +299,139 @@ const Transactions: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Bulk Import Modal */}
+      {showBulkImport && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-120 max-w-2xl shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">
+                Bulk Import Transactions
+              </h3>
+              
+              <div className="space-y-6">
+                {/* Template Download Section */}
+                <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+                  <div className="flex items-center">
+                    <FileText className="h-5 w-5 text-blue-400 mr-2" />
+                    <h4 className="text-sm font-medium text-blue-900">Download Template</h4>
+                  </div>
+                  <p className="mt-2 text-sm text-blue-700">
+                    Download our CSV template to ensure your data is formatted correctly. The template includes sample transactions to guide you.
+                  </p>
+                  <button
+                    onClick={handleDownloadTemplate}
+                    className="mt-3 inline-flex items-center px-3 py-2 border border-blue-300 shadow-sm text-sm font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Download CSV Template
+                  </button>
+                </div>
+
+                {/* File Upload Section */}
+                <div className="space-y-4">
+                  <h4 className="text-sm font-medium text-gray-900">Upload CSV File</h4>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
+                    <div className="text-center">
+                      <Upload className="mx-auto h-12 w-12 text-gray-400" />
+                      <div className="mt-4">
+                        <label htmlFor="csv-upload" className="cursor-pointer">
+                          <span className="mt-2 block text-sm font-medium text-gray-900">
+                            Choose CSV file to upload
+                          </span>
+                          <input
+                            ref={fileInputRef}
+                            id="csv-upload"
+                            name="csv-upload"
+                            type="file"
+                            accept=".csv"
+                            onChange={handleFileUpload}
+                            disabled={uploadProgress.uploading}
+                            className="sr-only"
+                          />
+                        </label>
+                        <p className="mt-1 text-sm text-gray-500">
+                          CSV files up to 5MB
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Upload Progress/Result */}
+                  {uploadProgress.message && (
+                    <div className={`p-4 rounded-md ${
+                      uploadProgress.message.startsWith('Success') 
+                        ? 'bg-green-50 border border-green-200' 
+                        : uploadProgress.message.startsWith('Error')
+                        ? 'bg-red-50 border border-red-200'
+                        : 'bg-blue-50 border border-blue-200'
+                    }`}>
+                      <div className={`text-sm ${
+                        uploadProgress.message.startsWith('Success') 
+                          ? 'text-green-700' 
+                          : uploadProgress.message.startsWith('Error')
+                          ? 'text-red-700'
+                          : 'text-blue-700'
+                      }`}>
+                        {uploadProgress.message}
+                      </div>
+                      
+                      {uploadProgress.errors && uploadProgress.errors.length > 0 && (
+                        <div className="mt-3">
+                          <h5 className="text-sm font-medium text-red-800 mb-2">Validation Errors:</h5>
+                          <div className="max-h-40 overflow-y-auto space-y-1">
+                            {uploadProgress.errors.slice(0, 10).map((error: any, index: number) => (
+                              <div key={index} className="text-xs text-red-600 bg-red-100 p-2 rounded">
+                                Row {error.row}: {error.error}
+                              </div>
+                            ))}
+                            {uploadProgress.errors.length > 10 && (
+                              <p className="text-xs text-red-600 italic">
+                                ... and {uploadProgress.errors.length - 10} more errors
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {uploadProgress.uploading && (
+                    <div className="flex items-center justify-center">
+                      <div className="loading-spinner mr-2"></div>
+                      <span className="text-sm text-gray-600">Processing...</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Instructions */}
+                <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
+                  <h4 className="text-sm font-medium text-gray-900 mb-2">CSV Format Requirements:</h4>
+                  <ul className="text-sm text-gray-600 space-y-1">
+                    <li>• Required columns: type, amount, description, date</li>
+                    <li>• Optional column: category</li>
+                    <li>• Type must be: income, expense, or investment</li>
+                    <li>• Amount must be a positive number</li>
+                    <li>• Date format: YYYY-MM-DD (e.g., 2024-01-15)</li>
+                    <li>• Maximum 1000 transactions per upload</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end mt-6">
+                <button
+                  type="button"
+                  onClick={toggleBulkImport}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md shadow-sm hover:bg-gray-200"
+                  disabled={uploadProgress.uploading}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Transaction Form Modal */}
       {showForm && (
