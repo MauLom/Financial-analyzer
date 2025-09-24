@@ -29,7 +29,7 @@ const api = axios.create({
 // Add token to requests if available
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('auth_token');
+    const token = localStorage.getItem('auth_token') || 'demo-token';
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
@@ -44,7 +44,7 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && process.env.NODE_ENV !== 'development') {
       localStorage.removeItem('auth_token');
       localStorage.removeItem('user');
       window.location.href = '/login';
@@ -90,6 +90,32 @@ export const transactionApi = {
 
   create: (transaction: Omit<Transaction, 'id' | 'created_at'>): Promise<Transaction> =>
     api.post('/transactions', transaction).then(res => res.data),
+
+  createBulk: (transactions: Omit<Transaction, 'id' | 'created_at'>[]): Promise<{
+    message: string;
+    count: number;
+    transactions: Transaction[];
+  }> =>
+    api.post('/transactions/bulk', { transactions }).then(res => res.data),
+
+  uploadCSV: (file: File): Promise<{
+    message: string;
+    count: number;
+    transactions: Transaction[];
+  }> => {
+    const formData = new FormData();
+    formData.append('csvFile', file);
+    return api.post('/transactions/upload-csv', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }).then(res => res.data);
+  },
+
+  downloadTemplate: (): Promise<Blob> =>
+    api.get('/transactions/template', {
+      responseType: 'blob',
+    }).then(res => res.data),
 
   update: (id: number, transaction: Omit<Transaction, 'id' | 'created_at'>): Promise<Transaction> =>
     api.put(`/transactions/${id}`, transaction).then(res => res.data),

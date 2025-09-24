@@ -30,7 +30,15 @@ const mockModel = (name) => {
   return {
     find: (query = {}) => {
       console.log(`Mock find for ${name}:`, collection);
-      return Promise.resolve(collection || []);
+      return {
+        sort: (sortObj) => {
+          return {
+            limit: (limitNum) => {
+              return Promise.resolve(collection || []);
+            }
+          };
+        }
+      };
     },
     findOne: (query = {}) => {
       const result = (collection || []).find(item => 
@@ -60,9 +68,23 @@ const mockModel = (name) => {
     },
     create: (data) => {
       if (!collection) collection = [];
-      const item = { ...data, _id: Date.now().toString() };
+      const item = { ...data, _id: Date.now().toString(), created_at: new Date() };
       collection.push(item);
       return Promise.resolve(item);
+    },
+    insertMany: (dataArray) => {
+      if (!collection) collection = [];
+      const items = dataArray.map((data, index) => ({
+        ...data, 
+        _id: (Date.now() + index).toString(),
+        created_at: new Date()
+      }));
+      collection.push(...items);
+      return Promise.resolve(items);
+    },
+    aggregate: (pipeline) => {
+      // Simple mock aggregation - just return empty array for now
+      return Promise.resolve([]);
     }
   };
 };
