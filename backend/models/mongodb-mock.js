@@ -116,8 +116,52 @@ const mockModel = (name) => {
       return Promise.resolve(items);
     },
     aggregate: (pipeline) => {
-      // Simple mock aggregation - just return empty array for now
-      return Promise.resolve([]);
+      console.log(`Mock aggregate for ${name}:`, JSON.stringify(pipeline, null, 2));
+      
+      let results = [...collection];
+      
+      // Process pipeline stages
+      pipeline.forEach(stage => {
+        if (stage.$match) {
+          results = results.filter(item => {
+            return Object.keys(stage.$match).every(key => {
+              if (key === 'date' && stage.$match[key] && typeof stage.$match[key] === 'object') {
+                // Handle date range queries
+                const itemDate = new Date(item[key]);
+                if (stage.$match[key].$gte && itemDate < new Date(stage.$match[key].$gte)) return false;
+                if (stage.$match[key].$lte && itemDate > new Date(stage.$match[key].$lte)) return false;
+                if (stage.$match[key].$lt && itemDate >= new Date(stage.$match[key].$lt)) return false;
+                return true;
+              }
+              return item[key] === stage.$match[key];
+            });
+          });
+        } else if (stage.$group) {
+          // Simple group by _id
+          const grouped = {};
+          results.forEach(item => {
+            const groupKey = item[stage.$group._id.replace('$', '')];
+            if (!grouped[groupKey]) {
+              grouped[groupKey] = {
+                _id: groupKey,
+                total_amount: 0,
+                count: 0
+              };
+            }
+            if (stage.$group.total_amount && stage.$group.total_amount.$sum) {
+              const sumField = stage.$group.total_amount.$sum.replace('$', '');
+              grouped[groupKey].total_amount += item[sumField] || 0;
+            }
+            if (stage.$group.count && stage.$group.count.$sum === 1) {
+              grouped[groupKey].count += 1;
+            }
+          });
+          results = Object.values(grouped);
+        }
+      });
+      
+      console.log(`Mock aggregate result for ${name}:`, JSON.stringify(results, null, 2));
+      return Promise.resolve(results);
     }
   };
 };
