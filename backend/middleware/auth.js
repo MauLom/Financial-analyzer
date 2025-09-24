@@ -1,12 +1,12 @@
 const jwt = require('jsonwebtoken');
-const { User } = require('../models/database-mongo');
+const { User } = require('../models/database-fallback');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
 
 // Middleware to verify JWT token
 const authenticateToken = (req, res, next) => {
-  // Development mode bypass
-  if (process.env.NODE_ENV === 'development' && (!User || require('../models/mongodb').mongoose.connection.readyState !== 1)) {
+  // Development mode bypass - check if we're using mock database
+  if (!User || process.env.NODE_ENV === 'development') {
     req.user = { id: 'dev-user', email: 'dev@example.com', username: 'developer' };
     return next();
   }
