@@ -27,14 +27,45 @@ const mockModel = (name) => {
   const collectionName = name.toLowerCase();
   let collection = mockDB[collectionName + 's'] || mockDB[collectionName];
   
+  // Ensure collection exists
+  if (!collection) {
+    collection = [];
+    if (mockDB[collectionName + 's']) {
+      mockDB[collectionName + 's'] = collection;
+    } else {
+      mockDB[collectionName] = collection;
+    }
+  }
+  
   return {
     find: (query = {}) => {
-      console.log(`Mock find for ${name}:`, collection);
+      console.log(`Mock find for ${name}:`, query, 'Collection size:', collection.length);
+      
+      // Filter results based on query
+      let results = collection.filter(item => {
+        return Object.keys(query).every(key => {
+          if (key === 'date' && query[key] && typeof query[key] === 'object') {
+            // Handle date range queries
+            const itemDate = new Date(item[key]);
+            if (query[key].$gte && itemDate < new Date(query[key].$gte)) return false;
+            if (query[key].$lte && itemDate > new Date(query[key].$lte)) return false;
+            return true;
+          }
+          return item[key] === query[key];
+        });
+      });
+      
       return {
         sort: (sortObj) => {
+          // Simple sort implementation
+          if (sortObj.date === -1) {
+            results.sort((a, b) => new Date(b.date) - new Date(a.date));
+          }
           return {
             limit: (limitNum) => {
-              return Promise.resolve(collection || []);
+              const limited = results.slice(0, limitNum);
+              console.log(`Mock find returning ${limited.length} results`);
+              return Promise.resolve(limited);
             }
           };
         }
@@ -67,19 +98,21 @@ const mockModel = (name) => {
       return Promise.resolve(null);
     },
     create: (data) => {
-      if (!collection) collection = [];
+      console.log(`Mock create for ${name}:`, data);
       const item = { ...data, _id: Date.now().toString(), created_at: new Date() };
       collection.push(item);
+      console.log(`Mock created item, collection now has ${collection.length} items`);
       return Promise.resolve(item);
     },
     insertMany: (dataArray) => {
-      if (!collection) collection = [];
+      console.log(`Mock insertMany for ${name}:`, dataArray.length, 'items');
       const items = dataArray.map((data, index) => ({
         ...data, 
         _id: (Date.now() + index).toString(),
         created_at: new Date()
       }));
       collection.push(...items);
+      console.log(`Mock inserted ${items.length} items, collection now has ${collection.length} items`);
       return Promise.resolve(items);
     },
     aggregate: (pipeline) => {
